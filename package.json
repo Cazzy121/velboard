@@ -5,6 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "test": "node --test 'core/**/*.test.js' 'core/panels/*/test.js'",
+    "test:watch": "node --test --watch 'core/**/*.test.js' 'core/panels/*/test.js'",
+    "smoke": "bash scripts/smoke.sh",
     "screenshots": "bash scripts/screenshots.sh"
   },
   "dependencies": {
