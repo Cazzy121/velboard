@@ -204,5 +204,5 @@ npm test
 ---
 
 <p align="center">
-  <sub>Built for <a href="https://github.com/nichochar/openclaw">OpenClaw</a> agents. Made with 🦞 by humans and AI.</sub>
+  <sub>Built for <a href="https://github.com/openclaw/openclaw">OpenClaw</a> agents. Made with 🦞 by humans and AI.</sub>
 </p>

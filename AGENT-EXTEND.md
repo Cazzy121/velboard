@@ -394,3 +394,35 @@ curl http://localhost:3700/api/panels/my-panel
 8. **Return data from filters** — forgetting `return` silently drops the data
 9. **Keep manifests accurate** — the shell relies on them for layout
 10. **Test before deploying** — run the server, hit your endpoint, check the UI
+
+---
+
+## Taking Screenshots for README
+
+Need screenshots of your dashboard for docs or a README? The live dashboard requires Telegram auth and loads external widgets, making headless browser screenshots tricky. Here's the pattern:
+
+1. **Create static pre-rendered HTML** — Pure HTML+CSS with hardcoded realistic data. No JavaScript, no WebSocket, no `fetch()`, no iframes, no Telegram widgets. Just a pixel-perfect replica of the UI with fake data baked in.
+
+2. **Serve via `custom/routes/`** — Create a route like `custom/routes/screenshots.js` that serves a `custom/screenshots/` directory as static files:
+   ```javascript
+   const express = require('express');
+   const path = require('path');
+   module.exports = (app) => {
+     app.use('/screenshots', express.static(
+       path.resolve(__dirname, '..', 'screenshots'),
+       { dotfiles: 'deny' }
+     ));
+   };
+   ```
+
+3. **Screenshot with headless browser** — Use Playwright/Puppeteer with a mobile viewport (e.g. 390×844 for iPhone 14 Pro):
+   ```javascript
+   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+   const page = await ctx.newPage();
+   await page.goto('https://your-domain/screenshots/landing.html');
+   await page.screenshot({ path: 'landing-mobile.png', fullPage: true });
+   ```
+
+4. **Or screenshot manually** — Open the URL on your phone and take a native screenshot. This gives the most authentic result.
+
+**Why this works:** Avoids all auth issues, widget loading failures, WebView quirks, and font/icon loading race conditions. The static pages use the exact same CSS classes as the real dashboard, so they look identical.
