@@ -62,9 +62,37 @@ function getSystemStatus() {
       encoding: 'utf8',
       shell: false
     }).trim();
-    return { _raw: raw };
+
+    const get = (label) => {
+      const re = new RegExp(`│\\s*${label}\\s*│\\s*(.+?)\\s*│`, 'i');
+      const m = raw.match(re);
+      return m ? m[1].trim() : null;
+    };
+
+    const version = get('Updated') || get('Version');
+    const heartbeat = get('Heartbeat');
+    const sessions = get('Sessions');
+    const memory = get('Memory');
+
+    const chanMatch = raw.match(/│\s*(telegram|discord|whatsapp|signal)\s*│\s*(ON|OFF)\s*│/i);
+    const channel = chanMatch ? { name: chanMatch[1], status: chanMatch[2] } : null;
+
+    const secMatch = raw.match(/Summary:\s*(\d+)\s*critical[,·]\s*(\d+)\s*warn[,·]\s*(\d+)\s*info/i);
+    const security = secMatch
+      ? { critical: parseInt(secMatch[1]), warn: parseInt(secMatch[2]), info: parseInt(secMatch[3]) }
+      : null;
+
+    return {
+      online: true,
+      version: version || 'unknown',
+      channel: channel || { name: 'unknown', status: 'ON' },
+      heartbeat: heartbeat || 'unknown',
+      sessions: sessions || 'unknown',
+      memory: memory || 'unknown',
+      security,
+    };
   } catch {
-    return null;
+    return { online: false, error: 'CLI not found or failed' };
   }
 }
 

@@ -208,6 +208,11 @@ function buildPanelList(registry, config) {
   const disabled = new Set(config.panels?.disabled || []);
   panels = panels.filter(p => !disabled.has(p.id));
 
+  // Hide _prefixed panels unless TEST_MODE
+  if (process.env.TEST_MODE !== 'true') {
+    panels = panels.filter(p => !p.id.startsWith('_'));
+  }
+
   // Sort by position, then alphabetical. Config order overrides all.
   const orderMap = new Map();
   (config.panels?.order || []).forEach((id, idx) => orderMap.set(id, idx));
