@@ -1,0 +1,95 @@
+system: clawboard
+version: "2.1.0"
+contract_version: "1.0"
+entrypoint: core/server.js
+framework: preact-htm
+vendor: core/vendor/preact-htm.js
+
+# Module system (intentional split — don't "fix" it)
+server_side: commonjs   # api.js, routes, hooks use module.exports
+client_side: esm        # ui.js, test.js use export default
+reason: "Node Express = CJS native. Browser = ESM native."
+
+panel_contract:
+  version: "1.0"
+  locations:
+    core: core/panels/
+    custom: custom/panels/
+    overrides: custom/overrides/
+    plugins: plugins/*/panels/
+  resolution_order: ["core", "custom", "plugins", "overrides"]
+  files:
+    manifest: manifest.json    # required, json
+    api: api.js                # required, cjs
+    ui: ui.js                  # required, esm, preact function component
+    test: test.js              # optional, esm
+  api_signature: "({ hooks, config, auth, panel }) => { endpoint, handler }"
+  ui_signature: "({ data, error, connected, lastUpdate, api, config, cls }) => VNode"
+  test_signature: "{ fixtures: [{name, data}], assertions: (html, fixture) => void }"
+  naming:
+    folder: lowercase-hyphenated
+    component: PascalCase of folder (cpu → CpuPanel)
+    api_route: /api/panels/{panel-id}
+    css_class: p-{panel-id}-{name} (use cls() helper)
+  position:
+    core: 10-90
+    custom: 100+
+    plugin: 200+
+    tiebreak: alphabetical by id
+    override: config.panels.order
+
+hook_contract:
+  version: "1.0"
+  async: true  # all hooks are async, always await
+  naming: "{scope}.{target}.{action}"
+  scopes:
+    core: reserved for core
+    panel: panel hooks
+    custom: user hooks
+    plugin.{name}: plugin hooks
+  filter_safety: "undefined returns are skipped, null is valid"
+
+route_contract:
+  version: "1.0"
+  module: commonjs
+  signature: "(app, { hooks, config, auth }) => void"
+  custom_prefix: /api/custom/
+  reserved: ["/api/panels/", "/auth/", "/ws/", "/public/", "/dashboard"]
+
+css_contract:
+  version: "1.0"
+  prefixes:
+    panel: p-{panel-id}-
+    plugin: plg-{plugin-name}-
+    core: c-
+  variables: [bg, card, accent, text, text-dim, green, yellow, red, green-dim, yellow-dim, red-dim]
+  rules:
+    - use cls() helper in panels
+    - use css variables for colors
+    - no !important except theme overrides
+    - no global selectors in panels
+
+error_contract:
+  shape: { error: string, code: string?, retry: boolean? }
+  delivery: passed as error prop to ui.js
+
+core_guarantees:
+  - panels unmounted not hidden (useEffect cleanup guaranteed)
+  - schema validation at startup + TEST_MODE only
+  - filter chain skips undefined returns
+  - position is hint, user panels.order overrides
+  - /core/vendor/preact-htm.js always available (vendored)
+
+capabilities:
+  v2: [fetch]
+  v3: [fetch, store]
+  v4: [fetch, store, agent]
+  v5: [fetch, store, agent, multi]
+
+extension_points:
+  panels: custom/panels/
+  overrides: custom/overrides/
+  routes: custom/routes/*.js
+  hooks: custom/hooks.js
+  theme: custom/theme/theme.css
+  plugins: plugins/
