@@ -10,9 +10,10 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.0-c9a84c?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.2.0-c9a84c?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/node-18%2B-blue?style=flat-square" alt="Node">
+  <img src="https://img.shields.io/badge/tests-54%20passing-brightgreen?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square" alt="PRs Welcome">
 </p>
 
@@ -31,8 +32,13 @@ Clawboard gives your OpenClaw agent a live web dashboard. WebSocket-powered. Tel
 Open a tab. See everything. Done.
 
 - **9 modular panels** — CPU, Memory, Disk, Uptime, Processes, Claude Usage, Crons, Models, OpenClaw Status
+- **Preact+HTM UI** — Zero build step, native ES modules, ~400ms load
+- **Panel contract v1.0** — Standardized props, scoped CSS via `cls()`, error boundaries
+- **54 unit tests** — Co-located test.js files, `node:test` + `node:assert`
 - **Live updates** — 2-second WebSocket refresh, no polling
 - **Telegram auth** — Mini App (inline) + Login Widget (browser)
+- **Data caching** — DeviceStorage (Mini App) + localStorage (browser), 60s TTL
+- **Service Worker** — Offline-capable static assets (browser mode)
 - **Config-driven** — Name, emoji, colors, traits — one JSON file
 - **Personality landing page** — Animated, branded, yours
 - **Extensible** — Custom panels, hooks, plugins, themes
@@ -66,6 +72,16 @@ bash setup.sh
 
 Or just send your agent the repo link. It reads `AGENT-SETUP.md` and handles everything.
 
+## Tech Stack
+
+| Layer | Tech |
+|-------|------|
+| Server | Express + ws (WebSocket) |
+| UI | **Preact + HTM** — zero build step, vendored bundle |
+| Auth | Telegram HMAC-SHA256 + signed cookies |
+| Tests | `node:test` + `node:assert` (stdlib, no deps) |
+| Styling | CSS variables, scoped via `cls()` helper |
+
 ## Panels
 
 | Icon | Panel | Size | What it shows |
@@ -81,6 +97,18 @@ Or just send your agent the repo link. It reads `AGENT-SETUP.md` and handles eve
 | 🤖 | **Models** | full | Primary, fallback, sub-agent routing |
 
 All panels are independent. Disable any in `config.json`. Add your own.
+
+## Testing
+
+```bash
+# Unit tests (54 tests across 21 suites)
+npm test
+
+# Smoke tests (integration — all API endpoints)
+npm run smoke
+```
+
+Tests are co-located with panels (`core/panels/*/test.js`). Uses Node.js built-in test runner — no test framework dependencies.
 
 ## Customization
 
@@ -108,48 +136,54 @@ All panels are independent. Disable any in `config.json`. Add your own.
 clawboard/
 ├── core/
 │   ├── server.js          # Express + WebSocket server
-│   ├── auth.js            # Telegram HMAC + cookie auth
-│   ├── metrics.js         # System metrics collector
-│   ├── panels/            # 9 built-in panels
+│   ├── lib/               # Auth, hooks, panels, validator
+│   ├── panels/            # 9 built-in panels (Preact+HTM)
 │   │   ├── cpu/
-│   │   │   ├── panel.json # { id, name, size, order }
-│   │   │   └── ui.js      # render() + update() contract
+│   │   │   ├── manifest.json  # { id, name, size, contractVersion }
+│   │   │   ├── api.js         # Server data endpoint
+│   │   │   ├── ui.js          # Preact+HTM component
+│   │   │   └── test.js        # node:test unit tests
 │   │   ├── memory/
 │   │   └── ...
+│   ├── vendor/
+│   │   └── preact-htm.js  # Vendored Preact+HTM bundle
 │   └── public/
 │       ├── shell.html     # Dashboard shell (loads panels dynamically)
 │       ├── landing.html   # Public landing page
-│       └── core.css       # Theme variables + base styles
+│       ├── core.css       # Theme variables + base styles
+│       └── sw.js          # Service worker (browser only)
+├── custom/                # Your customizations (git-ignored)
+├── plugins/               # External plugins
 ├── config.json            # Your config (git-ignored)
-├── config.example.json    # Template
 └── setup.sh               # Interactive setup wizard
 ```
 
-### Panel Contract
+### Panel Contract v1.0
 
-Every panel exports two functions:
+Every panel exports a default Preact+HTM function component:
 
 ```js
-window.DashboardPanels['my-panel'] = {
-  render(el, data) { /* Build DOM skeleton — called once */ },
-  update(el, data) { /* Surgical DOM updates — called every 2s */ }
-};
+import { html } from '/core/vendor/preact-htm.js';
+
+export default function MyPanel({ data, error, connected, lastUpdate, api, config, cls }) {
+  return html`<div class=${cls('wrap')}>...</div>`;
+}
 ```
 
 ## Extending
 
 **Add a panel:**
 ```bash
-cp -r core/templates/panel-example panels/my-panel
-# Edit panel.json + ui.js
+cp -r core/templates/panel-example custom/panels/my-panel
+# Edit manifest.json + api.js + ui.js
 # Restart. It auto-discovers.
 ```
 
-**Add a hook:** Hooks run server-side on every metrics cycle. Drop a `.js` file in `hooks/`.
+**Add a hook:** Drop `custom/hooks.js`. Server-side, modifies data flow.
 
-**Add a route:** Custom Express routes in `routes/`. Auto-mounted.
+**Add a route:** Custom Express routes in `custom/routes/`. Auto-mounted.
 
-**Change themes:** Override CSS variables in `config.json` or add a custom stylesheet.
+**Change themes:** Override CSS variables in `custom/theme/theme.css`.
 
 See [`AGENT-EXTEND.md`](./AGENT-EXTEND.md) for the full guide.
 
@@ -158,7 +192,7 @@ See [`AGENT-EXTEND.md`](./AGENT-EXTEND.md) for the full guide.
 - Telegram `initData` validated with **timing-safe HMAC-SHA256**
 - Browser auth via **signed, httpOnly cookies**
 - **Rate limiting** on all auth endpoints
-- **Helmet** security headers
+- Security headers (X-Content-Type-Options, X-Frame-Options, etc.)
 - WebSocket auth on connect
 - No shell injection — all metrics via Node.js APIs
 - `allowedUsers` whitelist in config
@@ -183,7 +217,7 @@ Zero terminal. Zero DevOps. The agent does it all.
 
 ## Contributing
 
-PRs welcome. Keep it modular. One panel per folder. Tests appreciated.
+PRs welcome. Keep it modular. One panel per folder. Tests required.
 
 ```bash
 npm test
