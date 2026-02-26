@@ -12,80 +12,15 @@
 <body>
   <div class="bg-grid"></div>
   <div class="bg-glow"></div>
+  <div id="app"></div>
 
-  <div class="container">
-    <!-- Header -->
-    <div class="header">
-      <div class="header-avatar" id="h-emoji">🤖</div>
-      <div>
-        <h1 id="h-name">Dashboard</h1>
-        <div class="header-sub" id="h-subtitle"></div>
-      </div>
-      <div class="header-right">
-        <div class="live-dot" id="ws-dot"></div>
-        <span class="live-label" id="ws-label">CONNECTING</span>
-        <div id="logout-area"></div>
-      </div>
-    </div>
-
-    <!-- Main content -->
-    <div id="main-content">
-      <div class="loading-screen">
-        <div class="loading-spinner"></div>
-        <div class="loading-text">Initializing systems...</div>
-      </div>
-    </div>
-
-    <!-- Footer -->
-    <div class="footer">
-      <span id="last-update"></span><br>
-      © <span id="f-year"></span> <span id="f-company"></span>
-    </div>
-  </div>
-
-  <script>
-    // ── Shared helper functions ──
-    function fmtBytes(b) {
-      if (b >= 1073741824) return (b / 1073741824).toFixed(1) + ' GB';
-      if (b >= 1048576) return (b / 1048576).toFixed(0) + ' MB';
-      return (b / 1024).toFixed(0) + ' KB';
-    }
-    function fmtUptime(s) {
-      const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
-      if (d > 0) return d + 'd ' + h + 'h ' + m + 'm';
-      if (h > 0) return h + 'h ' + m + 'm';
-      return m + 'm';
-    }
-    function barColor(pct) { return pct < 50 ? 'var(--green)' : pct < 80 ? 'var(--yellow)' : 'var(--red)'; }
-    function barBg(pct) { return pct < 50 ? 'var(--green-dim)' : pct < 80 ? 'var(--yellow-dim)' : 'var(--red-dim)'; }
-    function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-    function shortModel(m) { return m ? m.replace('anthropic/','').replace('google/','').replace(/-2025\d{4}/g,'') : ''; }
-    function fmtResetTime(iso) {
-      if (!iso) return '';
-      const diff = new Date(iso) - new Date();
-      if (diff <= 0) return 'Resetting…';
-      const mins = Math.floor(diff / 60000), hrs = Math.floor(mins / 60);
-      if (hrs < 1) return 'in ' + mins + 'm';
-      if (hrs < 24) return 'in ' + hrs + 'h ' + (mins % 60) + 'm';
-      return new Date(iso).toLocaleDateString('en-IN', { month:'short', day:'numeric' });
-    }
-    function fmtFetchedAt(iso) {
-      if (!iso) return '';
-      const mins = Math.floor((Date.now() - new Date(iso)) / 60000);
-      if (mins < 1) return 'just now';
-      if (mins < 60) return mins + 'm ago';
-      const hrs = Math.floor(mins / 60);
-      if (hrs < 24) return hrs + 'h ' + (mins % 60) + 'm ago';
-      return new Date(iso).toLocaleDateString('en-IN', { month:'short', day:'numeric' });
-    }
+  <script type="module">
+    import { html, render, h, Component, useState, useEffect, useRef, useMemo, useCallback, useReducer, useContext, createContext } from '/core/vendor/preact-htm.js';
 
     // ── Telegram WebApp detection ──
     const tg = window.Telegram?.WebApp;
     let initData = '';
     let browserMode = false;
-    let ws = null;
-    let wsRetries = 0;
-    const MAX_RETRIES = 10;
 
     if (tg && tg.initData) {
       tg.ready();
@@ -96,238 +31,353 @@
       browserMode = true;
     }
 
-    // ── Load config & customize theme ──
-    let config = {};
-    (async () => {
-      try {
-        const res = await fetch('/api/config');
-        config = await res.json();
-        document.title = `${config.name || 'Agent'} — Dashboard`;
-        document.getElementById('h-emoji').textContent = config.emoji || '🤖';
-        document.getElementById('h-name').textContent = config.name || 'Dashboard';
-        document.getElementById('h-subtitle').textContent = (config.role || 'AI Agent').toUpperCase();
-        document.getElementById('f-year').textContent = new Date().getFullYear();
-        document.getElementById('f-company').textContent = config.company || '';
-        if (config.accent) {
-          document.documentElement.style.setProperty('--accent', config.accent);
-          document.documentElement.style.setProperty('--accent-dim', config.accent + '22');
-          document.documentElement.style.setProperty('--accent-glow', config.accent + '44');
-        }
-        if (browserMode) {
-          document.getElementById('logout-area').innerHTML =
-            '<button class="refresh-btn" onclick="location.href=\'/auth/logout\'">Logout</button>';
-        }
-      } catch (err) {
-        console.error('[Config] Failed to load:', err);
-      }
-    })();
+    // ── Shared helpers ──
+    function fmtBytes(b) {
+      if (b >= 1073741824) return (b / 1073741824).toFixed(1) + ' GB';
+      if (b >= 1048576) return (b / 1048576).toFixed(0) + ' MB';
+      return (b / 1024).toFixed(0) + ' KB';
+    }
+    function fmtUptime(s) {
+      const d = Math.floor(s / 86400), hr = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+      if (d > 0) return d + 'd ' + hr + 'h ' + m + 'm';
+      if (hr > 0) return hr + 'h ' + m + 'm';
+      return m + 'm';
+    }
+    function barColor(pct) { return pct < 50 ? 'var(--green)' : pct < 80 ? 'var(--yellow)' : 'var(--red)'; }
+    function barBg(pct) { return pct < 50 ? 'var(--green-dim)' : pct < 80 ? 'var(--yellow-dim)' : 'var(--red-dim)'; }
+    function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function shortModel(m) { return m ? m.replace('anthropic/','').replace('google/','').replace(/-2025\d{4}/g,'') : ''; }
 
-    // ── Auth check ──
+    // Make helpers available globally for legacy panels
+    window.fmtBytes = fmtBytes;
+    window.fmtUptime = fmtUptime;
+    window.barColor = barColor;
+    window.barBg = barBg;
+    window.escHtml = escHtml;
+    window.shortModel = shortModel;
+
+    // ── Error Boundary ──
+    class ErrorBoundary extends Component {
+      constructor(props) {
+        super(props);
+        this.state = { error: null };
+      }
+      static getDerivedStateFromError(error) {
+        return { error };
+      }
+      componentDidCatch(error, info) {
+        console.error(`[Panel Error] ${this.props.panelId}:`, error);
+      }
+      render() {
+        if (this.state.error) {
+          return html`<div style="color: var(--red); padding: 12px; font-size: 12px;">
+            <div style="font-weight: 600;">Panel Error</div>
+            <div style="margin-top: 4px; color: var(--text-dim);">${this.state.error.message || 'Unknown error'}</div>
+          </div>`;
+        }
+        return this.props.children;
+      }
+    }
+
+    // ── Auth ──
     async function checkAuth() {
       try {
         const opts = browserMode
           ? { credentials: 'same-origin' }
           : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData }) };
         const res = await fetch('/api/auth', opts);
-        if (!res.ok) {
-          window.location.href = '/';
-          return false;
-        }
-        return true;
+        if (!res.ok) { window.location.href = '/'; return null; }
+        return await res.json();
       } catch {
         window.location.href = '/';
-        return false;
+        return null;
       }
     }
 
-    // ── Panel system ──
-    let panels = [];
-    let panelInstances = new Map(); // { panelId: { el, ui } }
+    // ── Panel Loader ──
+    const panelModules = new Map();
 
-    async function loadPanels() {
+    async function loadPanelUI(panelId) {
+      if (panelModules.has(panelId)) return panelModules.get(panelId);
       try {
-        const res = await fetch('/api/panels');
-        panels = await res.json();
-        
-        // Build panel grid
-        const grid = document.createElement('div');
-        grid.className = 'metrics-grid';
-        grid.id = 'panels-grid';
-
-        for (const panel of panels) {
-          const card = document.createElement('div');
-          card.className = `metric-card ${panel.size === 'full' ? 'full' : ''}`;
-          card.style.animation = 'fadeUp 0.4s ease forwards';
-          card.style.animationDelay = `${0.05 * panels.indexOf(panel)}s`;
-          card.id = `panel-${panel.id}`;
-
-          // Load panel UI script
-          try {
-            await new Promise((resolve, reject) => {
-              const script = document.createElement('script');
-              script.src = `/api/panels/${panel.id}/ui.js`;
-              script.onload = resolve;
-              script.onerror = reject;
-              document.head.appendChild(script);
-            });
-
-            // Get panel UI from global registry
-            const panelUI = window.DashboardPanels?.[panel.id];
-            if (panelUI) {
-              panelUI.render(card, null);
-              panelInstances.set(panel.id, { el: card, ui: panelUI });
-            } else {
-              throw new Error('Panel not registered');
-            }
-          } catch (err) {
-            console.error(`[Panel] Failed to load ${panel.id}:`, err);
-            card.innerHTML = `<div class="panel-error">
-              <div style="color: var(--red); font-size: 12px; font-weight: 600;">Panel Load Error</div>
-              <div style="color: var(--text-dim); font-size: 11px; margin-top: 4px;">${panel.name}</div>
-            </div>`;
-          }
-
-          grid.appendChild(card);
-        }
-
-        document.getElementById('main-content').innerHTML = '';
-        document.getElementById('main-content').appendChild(grid);
+        const mod = await import(`/api/panels/${panelId}/ui.js`);
+        const component = mod.default;
+        panelModules.set(panelId, component);
+        return component;
       } catch (err) {
-        console.error('[Panels] Failed to load panel list:', err);
-        document.getElementById('main-content').innerHTML = `
-          <div class="status-banner error">Failed to load panels</div>
-        `;
+        console.error(`[Panel] Failed to load UI for ${panelId}:`, err);
+        return null;
       }
     }
 
-    // ── WebSocket connection ──
-    function connectWS() {
-      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      ws = new WebSocket(`${proto}//${location.host}/ws/metrics`);
+    // ── Panel Wrapper Component ──
+    function PanelCard({ manifest, panelData, panelError, connected, lastUpdate, config: appConfig }) {
+      const [PanelComponent, setPanelComponent] = useState(null);
+      const [loadError, setLoadError] = useState(null);
 
-      ws.onopen = () => {
-        wsRetries = 0;
-        document.getElementById('ws-dot').className = 'live-dot';
-        document.getElementById('ws-label').className = 'live-label';
-        document.getElementById('ws-label').textContent = 'LIVE';
+      useEffect(() => {
+        loadPanelUI(manifest.id).then(comp => {
+          if (comp) setPanelComponent(() => comp);
+          else setLoadError('Failed to load panel UI');
+        });
+      }, [manifest.id]);
 
-        if (initData) {
-          ws.send(JSON.stringify({ type: 'auth', initData }));
-        } else {
-          fetch('/api/auth', { credentials: 'same-origin' })
-            .then(r => r.json())
-            .then(data => {
-              if (data.ok) ws.send(JSON.stringify({ type: 'auth', cookieAuth: true, user: data.user }));
-              else ws.close();
-            })
-            .catch(() => ws.close());
-        }
-      };
+      const cls = useCallback((name) => `p-${manifest.id}-${name}`, [manifest.id]);
 
-      ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data);
-          if (msg.type === 'auth' && !msg.ok) {
-            window.location.href = '/';
-            return;
+      const api = useMemo(() => ({
+        fetch: async (url, opts) => {
+          const fetchOpts = browserMode
+            ? { ...opts, credentials: 'same-origin' }
+            : { ...opts, headers: { ...opts?.headers, 'Content-Type': 'application/json' } };
+          if (!browserMode && initData) {
+            fetchOpts.method = fetchOpts.method || 'POST';
+            const body = fetchOpts.body ? JSON.parse(fetchOpts.body) : {};
+            body.initData = initData;
+            fetchOpts.body = JSON.stringify(body);
           }
-          if (msg.type === 'metrics') {
-            updatePanels(msg);
-            document.getElementById('last-update').textContent =
-              'Last update: ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-          }
-        } catch {}
-      };
-
-      ws.onclose = () => {
-        document.getElementById('ws-dot').className = 'live-dot offline-dot';
-        document.getElementById('ws-label').className = 'live-label offline-label';
-        document.getElementById('ws-label').textContent = 'OFFLINE';
-        if (wsRetries < MAX_RETRIES) {
-          wsRetries++;
-          setTimeout(connectWS, Math.min(1000 * wsRetries, 10000));
+          return fetch(url || `/api/panels/${manifest.id}`, fetchOpts);
         }
-      };
+      }), [manifest.id]);
 
-      ws.onerror = () => ws.close();
-    }
+      const panelConfig = appConfig?.panels?.[manifest.id] || manifest.config || {};
 
-    // ── Update panels with WebSocket data ──
-    function updatePanels(msg) {
-      // Map data to panels
-      const dataMap = {
-        cpu: msg.data?.cpu ? { load: msg.data.cpu.load, cores: msg.data.cpu.cores } : null,
-        memory: msg.data?.memory ? { total: msg.data.memory.total, used: msg.data.memory.used, pct: msg.data.memory.pct } : null,
-        disk: msg.data?.disk ? { total: msg.data.disk.total, used: msg.data.disk.used, pct: msg.data.disk.pct, mount: msg.data.disk.mount } : null,
-        uptime: msg.data ? { uptime: msg.data.uptime, hostname: msg.data.hostname } : null,
-        processes: msg.data?.processes ? { total: msg.data.processes.total, running: msg.data.processes.running, sleeping: msg.data.processes.sleeping, os: msg.data.os } : null,
-        'claude-usage': msg.usage,
-        crons: msg.crons,
-        models: msg.agent,
-        'openclaw-status': msg._oclStatus || null
-      };
-
-      for (const [panelId, data] of Object.entries(dataMap)) {
-        const instance = panelInstances.get(panelId);
-        if (instance && data !== undefined && data !== null) {
-          instance.ui.update(instance.el, data);
-        }
+      if (loadError) {
+        return html`<div class="metric-card ${manifest.size === 'full' ? 'full' : ''}">
+          <div style="color: var(--red); padding: 12px; font-size: 12px;">
+            <div style="font-weight: 600;">Panel Load Error</div>
+            <div style="color: var(--text-dim); margin-top: 4px;">${manifest.name}</div>
+          </div>
+        </div>`;
       }
 
-      // Fetch openclaw-status on first metrics msg if not yet loaded
-      if (!window._oclStatusLoaded) {
-        window._oclStatusLoaded = true;
-        const fetchOpts = initData
-          ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData }) }
-          : { credentials: 'same-origin' };
+      if (!PanelComponent) {
+        return html`<div class="metric-card ${manifest.size === 'full' ? 'full' : ''}" style="opacity: 0.5;">
+          <div style="padding: 16px; color: var(--text-dim); font-size: 12px;">Loading ${manifest.name}...</div>
+        </div>`;
+      }
+
+      // For new contract panels (contractVersion set), use Preact component
+      if (manifest.contractVersion) {
+        return html`<div class="metric-card ${manifest.size === 'full' ? 'full' : ''}">
+          <${ErrorBoundary} panelId=${manifest.id}>
+            <${PanelComponent}
+              data=${panelData}
+              error=${panelError}
+              connected=${connected}
+              lastUpdate=${lastUpdate}
+              api=${api}
+              config=${panelConfig}
+              cls=${cls}
+            />
+          <//>
+        </div>`;
+      }
+
+      // Legacy panels — they use window.DashboardPanels, handle separately
+      return html`<div class="metric-card ${manifest.size === 'full' ? 'full' : ''}" id="panel-${manifest.id}">
+        <div style="padding: 16px; color: var(--text-dim); font-size: 12px;">
+          ${manifest.name} (legacy — needs migration)
+        </div>
+      </div>`;
+    }
+
+    // ── Main App ──
+    function App() {
+      const [panels, setPanels] = useState([]);
+      const [config, setConfig] = useState({});
+      const [authData, setAuthData] = useState(null);
+      const [connected, setConnected] = useState(false);
+      const [panelDataMap, setPanelDataMap] = useState({});
+      const [lastUpdateMap, setLastUpdateMap] = useState({});
+      const [lastGlobalUpdate, setLastGlobalUpdate] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const wsRef = useRef(null);
+      const retriesRef = useRef(0);
+      const MAX_RETRIES = 10;
+
+      // Load config
+      useEffect(() => {
+        fetch('/api/config').then(r => r.json()).then(cfg => {
+          setConfig(cfg);
+          document.title = `${cfg.name || 'Agent'} — Dashboard`;
+          if (cfg.accent) {
+            document.documentElement.style.setProperty('--accent', cfg.accent);
+            document.documentElement.style.setProperty('--accent-dim', cfg.accent + '22');
+            document.documentElement.style.setProperty('--accent-glow', cfg.accent + '44');
+          }
+        }).catch(() => {});
+      }, []);
+
+      // Auth + load panels
+      useEffect(() => {
+        (async () => {
+          const auth = await checkAuth();
+          if (!auth) return;
+          setAuthData(auth);
+
+          const res = await fetch('/api/panels');
+          const panelList = await res.json();
+          setPanels(panelList);
+          setLoading(false);
+        })();
+      }, []);
+
+      // WebSocket
+      useEffect(() => {
+        if (!authData) return;
+
+        function connect() {
+          const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const ws = new WebSocket(`${proto}//${location.host}/ws/metrics`);
+          wsRef.current = ws;
+
+          ws.onopen = () => {
+            retriesRef.current = 0;
+            setConnected(true);
+            if (initData) {
+              ws.send(JSON.stringify({ type: 'auth', initData }));
+            } else {
+              fetch('/api/auth', { credentials: 'same-origin' })
+                .then(r => r.json())
+                .then(data => {
+                  if (data.ok) ws.send(JSON.stringify({ type: 'auth', cookieAuth: true, user: data.user }));
+                  else ws.close();
+                })
+                .catch(() => ws.close());
+            }
+          };
+
+          ws.onmessage = (e) => {
+            try {
+              const msg = JSON.parse(e.data);
+              if (msg.type === 'auth' && !msg.ok) {
+                window.location.href = '/';
+                return;
+              }
+              if (msg.type === 'metrics') {
+                const now = Date.now();
+                setLastGlobalUpdate(now);
+
+                // Use new panels format if available, fall back to legacy mapping
+                const pd = msg.panels || {};
+                // Also map legacy format for backward compat
+                if (!msg.panels) {
+                  if (msg.data?.cpu) pd.cpu = { load: msg.data.cpu.load, cores: msg.data.cpu.cores };
+                  if (msg.data?.memory) pd.memory = msg.data.memory;
+                  if (msg.data?.disk) pd.disk = msg.data.disk;
+                  if (msg.data) pd.uptime = { uptime: msg.data.uptime, hostname: msg.data.hostname };
+                  if (msg.data?.processes) pd.processes = { ...msg.data.processes, os: msg.data.os };
+                  if (msg.usage) pd['claude-usage'] = msg.usage;
+                  if (msg.crons) pd.crons = msg.crons;
+                  if (msg.agent) pd.models = msg.agent;
+                }
+
+                setPanelDataMap(prev => {
+                  const next = { ...prev };
+                  for (const [k, v] of Object.entries(pd)) {
+                    if (v !== null && v !== undefined) next[k] = v;
+                  }
+                  return next;
+                });
+
+                setLastUpdateMap(prev => {
+                  const next = { ...prev };
+                  for (const k of Object.keys(pd)) {
+                    if (pd[k] !== null && pd[k] !== undefined) next[k] = now;
+                  }
+                  return next;
+                });
+              }
+            } catch {}
+          };
+
+          ws.onclose = () => {
+            setConnected(false);
+            if (retriesRef.current < MAX_RETRIES) {
+              retriesRef.current++;
+              setTimeout(connect, Math.min(1000 * retriesRef.current, 10000));
+            }
+          };
+
+          ws.onerror = () => ws.close();
+        }
+
+        connect();
+        return () => { if (wsRef.current) wsRef.current.close(); };
+      }, [authData]);
+
+      // Fetch openclaw-status once
+      useEffect(() => {
+        if (!authData || panels.length === 0) return;
+        if (!panels.find(p => p.id === 'openclaw-status')) return;
+
+        const fetchOpts = browserMode
+          ? { credentials: 'same-origin' }
+          : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData }) };
         fetch('/api/panels/openclaw-status', fetchOpts)
           .then(r => r.json())
           .then(data => {
-            const inst = panelInstances.get('openclaw-status');
-            if (inst && data && !data.error) inst.ui.update(inst.el, data);
+            if (data && !data.error) {
+              setPanelDataMap(prev => ({ ...prev, 'openclaw-status': data }));
+              setLastUpdateMap(prev => ({ ...prev, 'openclaw-status': Date.now() }));
+            }
           })
           .catch(() => {});
+      }, [authData, panels]);
+
+      if (loading) {
+        return html`<div class="container">
+          <div class="loading-screen">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Initializing systems...</div>
+          </div>
+        </div>`;
       }
+
+      return html`<div class="container">
+        <!-- Header -->
+        <div class="header">
+          <div class="header-avatar">${config.emoji || '🤖'}</div>
+          <div>
+            <h1>${config.name || 'Dashboard'}</h1>
+            <div class="header-sub">${(config.role || 'AI Agent').toUpperCase()}</div>
+          </div>
+          <div class="header-right">
+            <div class="live-dot ${connected ? '' : 'offline-dot'}"></div>
+            <span class="live-label ${connected ? '' : 'offline-label'}">${connected ? 'LIVE' : 'OFFLINE'}</span>
+            ${browserMode && html`<button class="refresh-btn" onclick=${() => location.href = '/auth/logout'}>Logout</button>`}
+          </div>
+        </div>
+
+        ${!connected && html`<div class="status-banner" style="background: var(--yellow-dim); color: var(--yellow); text-align: center; padding: 8px; border-radius: 8px; margin-bottom: 12px; font-size: 12px;">
+          ⚠ Reconnecting...
+        </div>`}
+
+        <!-- Panel Grid -->
+        <div class="metrics-grid">
+          ${panels.map((manifest, i) => html`
+            <${PanelCard}
+              key=${manifest.id}
+              manifest=${manifest}
+              panelData=${panelDataMap[manifest.id] || null}
+              panelError=${null}
+              connected=${connected}
+              lastUpdate=${lastUpdateMap[manifest.id] || null}
+              config=${config}
+            />
+          `)}
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+          <span>${lastGlobalUpdate ? 'Last update: ' + new Date(lastGlobalUpdate).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}</span><br/>
+          © ${new Date().getFullYear()} ${config.company || ''}
+        </div>
+      </div>`;
     }
 
-    // ── Global event handlers ──
-    // Refresh Claude usage
-    document.addEventListener('refresh-usage', async (e) => {
-      try {
-        const opts = browserMode
-          ? { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' }
-          : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData }) };
-        const res = await fetch('/api/usage/refresh', opts);
-        if (res.ok) {
-          const data = await res.json();
-          const instance = panelInstances.get('claude-usage');
-          if (instance) instance.ui.update(instance.el, data);
-        }
-      } catch (err) {
-        console.error('[Usage] Refresh failed:', err);
-      }
-    });
-
-    // Cron actions
-    document.addEventListener('cron-action', async (e) => {
-      const { jobId, action } = e.detail;
-      try {
-        const opts = browserMode
-          ? { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId, action }) }
-          : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData, jobId, action }) };
-        await fetch('/api/crons/action', opts);
-      } catch (err) {
-        console.error('[Cron] Action failed:', err);
-      }
-    });
-
-    // ── Init ──
-    (async () => {
-      if (await checkAuth()) {
-        await loadPanels();
-        connectWS();
-      }
-    })();
+    // Mount
+    render(html`<${App} />`, document.getElementById('app'));
   </script>
 </body>
 </html>

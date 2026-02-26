@@ -1,30 +1,27 @@
 /**
- * Panel discovery, loading, and registration system
+ * Panel discovery, loading, registration — Contract v1.0
  * 
  * Resolution order (last wins):
- * 1. core/panels/ (built-in fallback)
- * 2. custom/panels/ (user panels)
- * 3. plugins/{name}/panels/ (plugin panels)
- * 4. custom/overrides/ (user overrides of core or plugin panels)
- * 
- * Error boundaries: Every panel load is wrapped in try-catch
+ * 1. core/panels/
+ * 2. custom/panels/
+ * 3. plugins/*/panels/
+ * 4. custom/overrides/
  */
 
 const fs = require('fs');
 const path = require('path');
 const hooks = require('./hooks');
+const { validateManifest, validateData } = require('./validator');
 
 /**
- * Scan a directory for panel folders
- * @param {string} dir - Directory to scan
- * @returns {string[]} Panel folder names
+ * Scan directory for panel folders
  */
 function scanPanelDir(dir) {
   if (!fs.existsSync(dir)) return [];
   try {
     return fs.readdirSync(dir, { withFileTypes: true })
-      .filter(dirent => dirent.isDirectory())
-      .map(dirent => dirent.name);
+      .filter(d => d.isDirectory())
+      .map(d => d.name);
   } catch (err) {
     console.error(`[Panels] Error scanning ${dir}:`, err.message);
     return [];
@@ -32,37 +29,53 @@ function scanPanelDir(dir) {
 }
 
 /**
- * Load panel manifest.json (with validation)
- * @param {string} panelPath - Path to panel folder
- * @returns {object|null} Manifest object or null
+ * Load and validate manifest.json
  */
-function loadManifest(panelPath) {
+function loadManifest(panelPath, panelId) {
   const manifestPath = path.join(panelPath, 'manifest.json');
-  if (!fs.existsSync(manifestPath)) return null;
+  if (!fs.existsSync(manifestPath)) return { manifest: null, errors: ['manifest.json not found'] };
   try {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    // Basic validation
-    if (!manifest.id || !manifest.name) {
-      console.error(`[Panels] Invalid manifest in ${panelPath}: missing id or name`);
-      return null;
+    const result = validateManifest(manifest);
+    
+    // Check id matches folder name
+    if (manifest.id && manifest.id !== panelId) {
+      result.errors.push({ path: 'id', message: `ID "${manifest.id}" doesn't match folder "${panelId}"` });
+      result.valid = false;
     }
-    return manifest;
+
+    // Check required files exist
+    if (!fs.existsSync(path.join(panelPath, 'api.js'))) {
+      result.errors.push({ path: 'api.js', message: 'api.js not found' });
+      result.valid = false;
+    }
+    if (!fs.existsSync(path.join(panelPath, 'ui.js'))) {
+      result.errors.push({ path: 'ui.js', message: 'ui.js not found' });
+      result.valid = false;
+    }
+
+    return { manifest, errors: result.errors, valid: result.valid };
   } catch (err) {
-    console.error(`[Panels] Error reading manifest in ${panelPath}:`, err.message);
-    return null;
+    return { manifest: null, errors: [`Failed to parse manifest: ${err.message}`] };
   }
 }
 
 /**
- * Load panel api.js (server-side endpoint)
- * @param {string} panelPath - Path to panel folder
- * @param {object} context - Context object (hooks, config)
- * @returns {object|null} API handler { endpoint, handler } or null
+ * Generate scoped CSS class helper
+ */
+function makeCls(panelId) {
+  return (name) => `p-${panelId}-${name}`;
+}
+
+/**
+ * Load panel api.js with context injection
  */
 function loadPanelAPI(panelPath, context) {
   const apiPath = path.join(panelPath, 'api.js');
   if (!fs.existsSync(apiPath)) return null;
   try {
+    // Clear require cache so reloads work
+    delete require.cache[require.resolve(apiPath)];
     const apiModule = require(apiPath);
     if (typeof apiModule === 'function') {
       return apiModule(context);
@@ -76,130 +89,196 @@ function loadPanelAPI(panelPath, context) {
 
 /**
  * Discover all panels across all sources
- * @param {string} rootDir - Dashboard root directory
- * @returns {Map<string, object>} Panel registry { panelId: { manifest, path, source } }
  */
 function discoverPanels(rootDir) {
   const registry = new Map();
+  const report = { loaded: [], failed: [], skipped: [] };
 
-  // 1. Core panels (built-in fallback)
-  const corePanelsDir = path.join(rootDir, 'core', 'panels');
-  const corePanels = scanPanelDir(corePanelsDir);
-  for (const panelId of corePanels) {
-    const panelPath = path.join(corePanelsDir, panelId);
-    const manifest = loadManifest(panelPath);
-    if (manifest) {
-      registry.set(panelId, { manifest, path: panelPath, source: 'core' });
-    }
-  }
+  const sources = [
+    { dir: path.join(rootDir, 'core', 'panels'), source: 'core' },
+    { dir: path.join(rootDir, 'custom', 'panels'), source: 'custom' },
+  ];
 
-  // 2. Custom panels (user panels)
-  const customPanelsDir = path.join(rootDir, 'custom', 'panels');
-  const customPanels = scanPanelDir(customPanelsDir);
-  for (const panelId of customPanels) {
-    const panelPath = path.join(customPanelsDir, panelId);
-    const manifest = loadManifest(panelPath);
-    if (manifest) {
-      registry.set(panelId, { manifest, path: panelPath, source: 'custom' });
-    }
-  }
-
-  // 3. Plugin panels
+  // Plugin panels
   const pluginsDir = path.join(rootDir, 'plugins');
   if (fs.existsSync(pluginsDir)) {
     const plugins = scanPanelDir(pluginsDir);
     for (const pluginName of plugins) {
-      const pluginPanelsDir = path.join(pluginsDir, pluginName, 'panels');
-      const pluginPanels = scanPanelDir(pluginPanelsDir);
-      for (const panelId of pluginPanels) {
-        const panelPath = path.join(pluginPanelsDir, panelId);
-        const manifest = loadManifest(panelPath);
-        if (manifest) {
-          registry.set(panelId, { manifest, path: panelPath, source: `plugin:${pluginName}` });
-        }
-      }
-    }
-  }
-
-  // 4. Custom overrides (highest priority)
-  const overridesDir = path.join(rootDir, 'custom', 'overrides');
-  const overrides = scanPanelDir(overridesDir);
-  for (const panelId of overrides) {
-    const panelPath = path.join(overridesDir, panelId);
-    const manifest = loadManifest(panelPath);
-    if (manifest) {
-      registry.set(panelId, { manifest, path: panelPath, source: 'override' });
-    }
-  }
-
-  // Fire discovery hook (allows plugins to modify registry)
-  hooks.action('panels.discovered', registry);
-
-  return registry;
-}
-
-/**
- * Register panel API endpoints with Express app
- * @param {object} app - Express app
- * @param {Map} registry - Panel registry from discoverPanels
- * @param {object} context - Context object (hooks, config)
- */
-function registerPanelAPIs(app, registry, context) {
-  let registered = 0;
-  for (const [panelId, panelInfo] of registry.entries()) {
-    const api = loadPanelAPI(panelInfo.path, context);
-    if (api && api.endpoint && api.handler) {
-      // Wrap in error boundary
-      app.all(api.endpoint, async (req, res, next) => {
-        try {
-          await api.handler(req, res, next);
-        } catch (err) {
-          console.error(`[Panel API Error] ${panelId}:`, err.message);
-          res.status(500).json({ error: 'Panel API error', panel: panelId });
-        }
+      sources.push({
+        dir: path.join(pluginsDir, pluginName, 'panels'),
+        source: `plugin:${pluginName}`
       });
-      registered++;
-      console.log(`[Panels] Registered API: ${api.endpoint} (${panelInfo.source}/${panelId})`);
     }
   }
-  console.log(`[Panels] Total panels discovered: ${registry.size}, APIs registered: ${registered}`);
+
+  // Overrides (highest priority)
+  sources.push({ dir: path.join(rootDir, 'custom', 'overrides'), source: 'override' });
+
+  for (const { dir, source } of sources) {
+    const panelIds = scanPanelDir(dir);
+    for (const panelId of panelIds) {
+      const panelPath = path.join(dir, panelId);
+      const { manifest, errors, valid } = loadManifest(panelPath, panelId);
+
+      if (!manifest) {
+        report.failed.push({ id: panelId, source, errors });
+        continue;
+      }
+
+      if (valid === false) {
+        // For new contract panels, strict validation
+        // For legacy panels (no contractVersion), be lenient
+        if (manifest.contractVersion) {
+          report.failed.push({ id: panelId, source, errors });
+          continue;
+        }
+        // Legacy panel — load with warnings
+        report.skipped.push({ id: panelId, source, errors, reason: 'legacy (no contractVersion)' });
+      }
+
+      registry.set(panelId, { manifest, path: panelPath, source });
+      report.loaded.push({ id: panelId, source, version: manifest.version || '?' });
+    }
+  }
+
+  // Fire discovery hook
+  hooks.action('core.panels.discovered', registry);
+
+  return { registry, report };
 }
 
 /**
- * Build panel manifest list for frontend (filtered & ordered)
- * @param {Map} registry - Panel registry
- * @param {object} config - Dashboard config
- * @returns {object[]} Array of panel manifests for frontend
+ * Register panel API endpoints with Express
+ */
+function registerPanelAPIs(app, registry, context, rateLimit) {
+  let registered = 0;
+
+  for (const [panelId, panelInfo] of registry.entries()) {
+    const manifest = panelInfo.manifest;
+    const panelContext = {
+      ...context,
+      panel: {
+        id: panelId,
+        manifest,
+        cls: makeCls(panelId),
+        config: context.config?.panels?.[panelId] || manifest.config || {}
+      }
+    };
+
+    const api = loadPanelAPI(panelInfo.path, panelContext);
+    if (!api || !api.handler) continue;
+
+    const endpoint = api.endpoint || `/api/panels/${panelId}`;
+
+    // Per-panel rate limiting
+    const middlewares = [];
+    if (rateLimit && manifest.rateLimit) {
+      middlewares.push(rateLimit({
+        windowMs: manifest.rateLimit.windowMs || 60000,
+        max: manifest.rateLimit.max || 30,
+        keyGenerator: (req) => `panel:${panelId}:${req.ip}`
+      }));
+    }
+
+    // Wrap in error boundary
+    app.all(endpoint, ...middlewares, async (req, res, next) => {
+      try {
+        await api.handler(req, res, next);
+      } catch (err) {
+        console.error(`[Panel API Error] ${panelId}:`, err.message);
+        res.status(500).json({ error: 'Panel API error', code: 'PANEL_ERROR', retry: true });
+      }
+    });
+
+    registered++;
+    console.log(`  ✓ ${endpoint} (${panelInfo.source}/${panelId})`);
+  }
+
+  return registered;
+}
+
+/**
+ * Build ordered panel manifest list for frontend
  */
 function buildPanelList(registry, config) {
-  let panels = Array.from(registry.values()).map(p => p.manifest);
+  let panels = Array.from(registry.values()).map(p => ({
+    ...p.manifest,
+    _source: p.source
+  }));
 
-  // Filter: remove disabled panels
+  // Filter disabled
   const disabled = new Set(config.panels?.disabled || []);
   panels = panels.filter(p => !disabled.has(p.id));
 
-  // Apply filter hook
-  panels = hooks.filter('panels.order', panels, config);
-
-  // Sort: by position (from manifest) then by order from config
+  // Sort by position, then alphabetical. Config order overrides all.
   const orderMap = new Map();
   (config.panels?.order || []).forEach((id, idx) => orderMap.set(id, idx));
 
   panels.sort((a, b) => {
-    const posA = a.position !== undefined ? a.position : 999;
-    const posB = b.position !== undefined ? b.position : 999;
-    if (posA !== posB) return posA - posB;
-    
-    const orderA = orderMap.get(a.id) !== undefined ? orderMap.get(a.id) : 999;
-    const orderB = orderMap.get(b.id) !== undefined ? orderMap.get(b.id) : 999;
-    return orderA - orderB;
+    // Config order wins
+    const oa = orderMap.has(a.id) ? orderMap.get(a.id) : Infinity;
+    const ob = orderMap.has(b.id) ? orderMap.get(b.id) : Infinity;
+    if (oa !== ob) return oa - ob;
+
+    // Then position
+    const pa = a.position !== undefined ? a.position : 999;
+    const pb = b.position !== undefined ? b.position : 999;
+    if (pa !== pb) return pa - pb;
+
+    // Then alphabetical
+    return a.id.localeCompare(b.id);
   });
 
   return panels;
 }
 
+/**
+ * Test data schema validation (TEST_MODE only)
+ */
+async function validateDataSchemas(registry, context) {
+  if (process.env.TEST_MODE !== 'true') return [];
+  const results = [];
+
+  for (const [panelId, panelInfo] of registry.entries()) {
+    const manifest = panelInfo.manifest;
+    if (!manifest.dataSchema || !manifest.contractVersion) continue;
+
+    try {
+      const panelContext = {
+        ...context,
+        panel: { id: panelId, manifest, cls: makeCls(panelId), config: {} }
+      };
+      const api = loadPanelAPI(panelInfo.path, panelContext);
+      if (!api || !api.handler) continue;
+
+      // Mock request/response
+      const mockData = await new Promise((resolve) => {
+        const mockReq = { body: {}, query: {}, params: {}, headers: {}, ip: '127.0.0.1' };
+        const mockRes = {
+          json: (data) => resolve(data),
+          status: () => mockRes,
+          send: () => resolve(null),
+          setHeader: () => {},
+        };
+        api.handler(mockReq, mockRes).catch(() => resolve(null));
+      });
+
+      if (mockData) {
+        const result = validateData(mockData, manifest.dataSchema);
+        results.push({ panelId, valid: result.valid, errors: result.errors });
+      }
+    } catch (err) {
+      results.push({ panelId, valid: false, errors: [{ message: err.message }] });
+    }
+  }
+
+  return results;
+}
+
 module.exports = {
   discoverPanels,
   registerPanelAPIs,
-  buildPanelList
+  buildPanelList,
+  validateDataSchemas,
+  makeCls
 };

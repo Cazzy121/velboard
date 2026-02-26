@@ -1,8 +1,8 @@
 /**
- * OpenClaw Dashboard Kit v2 — Core Server
+ * OpenClaw Dashboard Kit v2.1 — Core Server
  * 
- * Modular panel architecture with WordPress-style hooks
- * Preserves ALL functionality from v1 monolithic server
+ * Modular panel architecture with async hooks + contract v1.0
+ * Preserves ALL functionality from v1
  */
 
 const express = require('express');
@@ -21,11 +21,18 @@ const hooks = require('./lib/hooks');
 const auth = require('./lib/auth');
 const panels = require('./lib/panels');
 const updater = require('./lib/updater');
+const { validateManifest } = require('./lib/validator');
 
 // Paths
 const ROOT_DIR = path.resolve(__dirname, '..');
 const WORKSPACE = path.resolve(ROOT_DIR, '..');
 const CONFIG_PATH = path.join(ROOT_DIR, 'config.json');
+
+// ── TEST_MODE warning ──
+if (process.env.TEST_MODE === 'true') {
+  console.warn('\n⚠️  TEST_MODE is enabled — auth bypassed, schema validation active');
+  console.warn('⚠️  Do NOT use in production.\n');
+}
 
 // ── Load Config ──
 let config = {};
@@ -69,7 +76,7 @@ const server = http.createServer(app);
 const PORT = config.port || 3700;
 
 // Fire server.init hook
-hooks.action('server.init', app, config);
+hooks.action('core.server.init', app, config);
 
 // Middleware
 app.use(express.json());
@@ -107,8 +114,35 @@ app.use('/api/', apiLimiter);
 // Static files (core/public/)
 app.use('/public', express.static(path.join(ROOT_DIR, 'core', 'public')));
 
+// Serve vendored JS
+app.use('/core/vendor', express.static(path.join(ROOT_DIR, 'core', 'vendor'), {
+  setHeaders: (res) => res.setHeader('Content-Type', 'application/javascript')
+}));
+
 // ── Discover and register panels ──
-const panelRegistry = panels.discoverPanels(ROOT_DIR);
+console.log('\n[Panels] Discovering panels...');
+const { registry: panelRegistry, report: panelReport } = panels.discoverPanels(ROOT_DIR);
+
+// Startup validation report
+console.log(`\n┌─ Panel Report ────────────────────────`);
+console.log(`│ Loaded: ${panelReport.loaded.length}`);
+for (const p of panelReport.loaded) {
+  console.log(`│   ✓ ${p.id} (${p.source}) v${p.version}`);
+}
+if (panelReport.skipped.length > 0) {
+  console.log(`│ Legacy (no contract): ${panelReport.skipped.length}`);
+  for (const p of panelReport.skipped) {
+    console.log(`│   ⚠ ${p.id} (${p.source}) — ${p.reason}`);
+  }
+}
+if (panelReport.failed.length > 0) {
+  console.log(`│ Failed: ${panelReport.failed.length}`);
+  for (const p of panelReport.failed) {
+    const errMsgs = p.errors.map(e => typeof e === 'string' ? e : e.message).join(', ');
+    console.log(`│   ✗ ${p.id} (${p.source}) — ${errMsgs}`);
+  }
+}
+console.log(`└────────────────────────────────────────\n`);
 
 // ── Serve panel UI files (ui.js) for browser import ──
 app.get('/api/panels/:panelId/ui.js', (req, res) => {
@@ -120,8 +154,24 @@ app.get('/api/panels/:panelId/ui.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   res.sendFile(uiPath);
 });
+
+// Register panel APIs
+console.log('[Panels] Registering API endpoints...');
 const context = { hooks, config, auth };
-panels.registerPanelAPIs(app, panelRegistry, context);
+const registeredCount = panels.registerPanelAPIs(app, panelRegistry, context, rateLimit);
+console.log(`[Panels] ${registeredCount} API endpoints registered\n`);
+
+// ── TEST_MODE: validate data schemas ──
+if (process.env.TEST_MODE === 'true') {
+  panels.validateDataSchemas(panelRegistry, context).then(results => {
+    if (results.length > 0) {
+      console.log('[TEST] Data schema validation:');
+      for (const r of results) {
+        console.log(`  ${r.valid ? '✓' : '✗'} ${r.panelId}${r.errors.length ? ': ' + r.errors.map(e => e.message).join(', ') : ''}`);
+      }
+    }
+  });
+}
 
 // ── Load custom hooks (if exists) ──
 const customHooksPath = path.join(ROOT_DIR, 'custom', 'hooks.js');
@@ -157,13 +207,12 @@ if (fs.existsSync(customRoutesDir)) {
 // ── Load plugin hooks and routes ──
 const pluginsDir = path.join(ROOT_DIR, 'plugins');
 if (fs.existsSync(pluginsDir)) {
-  const plugins = fs.readdirSync(pluginsDir, { withFileTypes: true })
+  const pluginDirs = fs.readdirSync(pluginsDir, { withFileTypes: true })
     .filter(d => d.isDirectory())
     .map(d => d.name);
-  for (const plugin of plugins) {
+  for (const plugin of pluginDirs) {
     const pluginDir = path.join(pluginsDir, plugin);
     
-    // Load plugin hooks
     const pluginHooksPath = path.join(pluginDir, 'hooks.js');
     if (fs.existsSync(pluginHooksPath)) {
       try {
@@ -177,7 +226,6 @@ if (fs.existsSync(pluginsDir)) {
       }
     }
 
-    // Load plugin routes
     const pluginRoutesDir = path.join(pluginDir, 'routes');
     if (fs.existsSync(pluginRoutesDir)) {
       const routeFiles = fs.readdirSync(pluginRoutesDir).filter(f => f.endsWith('.js'));
@@ -201,13 +249,13 @@ if (fs.existsSync(pluginsDir)) {
 // Safe config (no secrets)
 app.get('/api/config', (req, res) => {
   const { allowedUsers, ...safeConfig } = config;
-  res.json(hooks.filter('api.config', safeConfig));
+  res.json(safeConfig);
 });
 
-// Panel manifest list
+// Panel manifest list (public, no auth per contract)
 app.get('/api/panels', (req, res) => {
   const panelList = panels.buildPanelList(panelRegistry, config);
-  res.json(hooks.filter('api.panels', panelList));
+  res.json(panelList);
 });
 
 // Auth check (Mini App)
@@ -239,7 +287,7 @@ function getUsageData() {
 app.get('/api/usage', auth.requireAuth, (req, res) => {
   const data = getUsageData();
   if (!data) return res.status(404).json({ error: 'Usage data not available' });
-  res.json(hooks.filter('api.usage', data));
+  res.json(data);
 });
 
 app.post('/api/usage', (req, res) => {
@@ -247,7 +295,7 @@ app.post('/api/usage', (req, res) => {
   if (!user || !auth.isAllowed(user.id)) return res.status(403).json({ error: 'Unauthorized' });
   const data = getUsageData();
   if (!data) return res.status(404).json({ error: 'Usage data not available' });
-  res.json(hooks.filter('api.usage', data));
+  res.json(data);
 });
 
 // Refresh Claude usage
@@ -282,7 +330,7 @@ async function getSystemMetrics() {
     si.processes()
   ]);
   const rootDisk = disk.find(d => d.mount === '/') || disk[0] || {};
-  return hooks.filter('api.metrics', {
+  return {
     cpu: { load: Math.round(cpu.currentLoad * 10) / 10, cores: cpu.cpus?.length || 0 },
     memory: {
       total: mem.total,
@@ -303,7 +351,7 @@ async function getSystemMetrics() {
     hostname: osInfo.hostname,
     processes: { total: proc.all, running: proc.running, sleeping: proc.sleeping },
     ts: Date.now()
-  });
+  };
 }
 
 app.get('/api/metrics', auth.requireAuth, async (req, res) => {
@@ -332,14 +380,14 @@ function getSystemStatus() {
 
 app.get('/api/status', auth.requireAuth, (req, res) => {
   const data = getSystemStatus();
-  res.json(hooks.filter('api.status', data || { _raw: 'Status unavailable' }));
+  res.json(data || { _raw: 'Status unavailable' });
 });
 
 app.post('/api/status', (req, res) => {
   const user = auth.validateInitData(req.body?.initData);
   if (!user || !auth.isAllowed(user.id)) return res.status(403).json({ error: 'Unauthorized' });
   const data = getSystemStatus();
-  res.json(hooks.filter('api.status', data || { _raw: 'Status unavailable' }));
+  res.json(data || { _raw: 'Status unavailable' });
 });
 
 // Agent info
@@ -366,13 +414,13 @@ function getAgentInfo() {
 }
 
 app.get('/api/agent', auth.requireAuth, (req, res) => {
-  res.json(hooks.filter('api.agent', getAgentInfo() || {}));
+  res.json(getAgentInfo() || {});
 });
 
 app.post('/api/agent', (req, res) => {
   const user = auth.validateInitData(req.body?.initData);
   if (!user || !auth.isAllowed(user.id)) return res.status(403).json({ error: 'Unauthorized' });
-  res.json(hooks.filter('api.agent', getAgentInfo() || {}));
+  res.json(getAgentInfo() || {});
 });
 
 // Cron jobs
@@ -410,13 +458,13 @@ function getCronJobs() {
 }
 
 app.get('/api/crons', auth.requireAuth, (req, res) => {
-  res.json(hooks.filter('api.crons', getCronJobs()));
+  res.json(getCronJobs());
 });
 
 app.post('/api/crons', (req, res) => {
   const user = auth.validateInitData(req.body?.initData);
   if (!user || !auth.isAllowed(user.id)) return res.status(403).json({ error: 'Unauthorized' });
-  res.json(hooks.filter('api.crons', getCronJobs()));
+  res.json(getCronJobs());
 });
 
 // Cron actions
@@ -532,12 +580,35 @@ wss.on('connection', (ws) => {
               const usageData = getUsageData();
               const agentInfo = getAgentInfo();
               const cronJobs = getCronJobs();
+
+              // Build per-panel data for new contract panels
+              const panelData = {};
+              for (const [panelId, panelInfo] of panelRegistry.entries()) {
+                // Map legacy metrics to panel data
+                const m = panelInfo.manifest;
+                if (!m) continue;
+                switch (panelId) {
+                  case 'cpu': panelData.cpu = metrics.cpu ? { load: metrics.cpu.load, cores: metrics.cpu.cores } : null; break;
+                  case 'memory': panelData.memory = metrics.memory || null; break;
+                  case 'disk': panelData.disk = metrics.disk || null; break;
+                  case 'uptime': panelData.uptime = { uptime: metrics.uptime, hostname: metrics.hostname } ; break;
+                  case 'processes': panelData.processes = metrics.processes ? { ...metrics.processes, os: metrics.os } : null; break;
+                  case 'claude-usage': panelData['claude-usage'] = usageData; break;
+                  case 'crons': panelData.crons = cronJobs; break;
+                  case 'models': panelData.models = agentInfo; break;
+                  case '_test': panelData['_test'] = { message: 'Hello from _test panel!', ts: Date.now() }; break;
+                }
+              }
+
               ws.send(JSON.stringify({
                 type: 'metrics',
-                data: hooks.filter('ws.metrics', metrics),
-                usage: hooks.filter('ws.usage', usageData),
-                agent: hooks.filter('ws.agent', agentInfo),
-                crons: hooks.filter('ws.crons', cronJobs)
+                // Legacy format (backward compat)
+                data: metrics,
+                usage: usageData,
+                agent: agentInfo,
+                crons: cronJobs,
+                // New contract format
+                panels: panelData
               }));
             } catch {}
           };
@@ -567,7 +638,7 @@ wss.on('connection', (ws) => {
 });
 
 // Fire server.ready hook
-hooks.action('server.ready', server, config);
+hooks.action('core.server.ready', server, config);
 
 // Start server
 server.listen(PORT, '0.0.0.0', () => {
