@@ -13,7 +13,7 @@ const http = require('http');
 const cookieParser = require('cookie-parser');
 const { WebSocketServer } = require('ws');
 const rateLimit = require('express-rate-limit');
-const { getSystemMetrics, getUsageData, getAgentInfo, getCronJobs } = require('./lib/data');
+const { getSystemMetrics, getUsageData, getSystemStatus, getAgentInfo, getCronJobs } = require('./lib/data');
 
 // Load core modules
 const hooks = require('./lib/hooks');
@@ -93,7 +93,7 @@ app.use((req, res, next) => {
 // Rate limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false
 });
@@ -373,6 +373,7 @@ wss.on('connection', (ws) => {
                   case 'claude-usage': panelData['claude-usage'] = usageData; break;
                   case 'crons': panelData.crons = cronJobs; break;
                   case 'models': panelData.models = agentInfo; break;
+                  case 'openclaw-status': panelData['openclaw-status'] = getSystemStatus(); break;
                   case '_test': panelData['_test'] = { message: 'Hello from _test panel!', ts: Date.now() }; break;
                 }
               }
