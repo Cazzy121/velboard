@@ -1,16 +1,15 @@
 # Agent Setup Instructions — OpenClaw Dashboard
 
-**For OpenClaw agents:** Follow these steps when a user sends you this ZIP file in chat and asks you to set it up. Ask questions via chat messages — no terminal access needed from the user.
+**For OpenClaw agents:** Follow these steps when a user asks you to set up Clawboard. Clone the repo from GitHub, then ask questions via chat messages — no terminal access needed from the user.
 
 ---
 
-## Step 0 — Extract
+## Step 0 — Clone from GitHub
 
 ```bash
-# Extract the ZIP to your workspace
 cd ~/.openclaw/workspace
-unzip /path/to/clawboard-kit.zip
-mv dashboard-dist dashboard
+git clone https://github.com/karthikeyan5/clawboard.git
+cd clawboard
 ```
 
 ## Step 1 — Ask the user these questions (one message)
@@ -53,7 +52,7 @@ You likely already know the user's Telegram ID from the chat metadata (the `chat
 
 ## Step 4 — Write config.json
 
-Create `~/.openclaw/workspace/dashboard/config.json` with the collected values:
+Create `~/.openclaw/workspace/clawboard/config.json` with the collected values:
 
 ```json
 {
@@ -89,14 +88,14 @@ Create `~/.openclaw/workspace/dashboard/config.json` with the collected values:
 ## Step 5 — Write .env
 
 ```bash
-echo "BOT_TOKEN=<bot_token>" > ~/.openclaw/workspace/dashboard/.env
-chmod 600 ~/.openclaw/workspace/dashboard/.env
+echo "BOT_TOKEN=<bot_token>" > ~/.openclaw/workspace/clawboard/.env
+chmod 600 ~/.openclaw/workspace/clawboard/.env
 ```
 
 ## Step 6 — Install dependencies
 
 ```bash
-cd ~/.openclaw/workspace/dashboard
+cd ~/.openclaw/workspace/clawboard
 npm install --production
 ```
 
@@ -110,21 +109,16 @@ If the user said yes to Claude Max:
    ```
 
 2. If authenticated with `user:profile` scope:
-   ```bash
-   mkdir -p ~/.openclaw/workspace/skills/claude-usage-monitor/scripts
-   cp ~/.openclaw/workspace/dashboard/claude-usage-monitor/SKILL.md ~/.openclaw/workspace/skills/claude-usage-monitor/
-   cp ~/.openclaw/workspace/dashboard/claude-usage-monitor/scripts/claude-usage-poll.sh ~/.openclaw/workspace/skills/claude-usage-monitor/scripts/
-   chmod +x ~/.openclaw/workspace/skills/claude-usage-monitor/scripts/claude-usage-poll.sh
-   ```
+   The monitor is built into Clawboard at `core/services/claude-usage-monitor/`.
 
 3. Test it:
    ```bash
-   CLAUDE_USAGE_OUTPUT=~/.openclaw/workspace/claude-usage.json bash ~/.openclaw/workspace/skills/claude-usage-monitor/scripts/claude-usage-poll.sh
+   CLAUDE_USAGE_OUTPUT=~/.openclaw/workspace/claude-usage.json bash ~/.openclaw/workspace/clawboard/core/services/claude-usage-monitor/scripts/claude-usage-poll.sh
    ```
 
 4. Set up a cron job (use OpenClaw cron tool):
-   - Schedule: every 10 minutes during working hours
-   - Command: `bash skills/claude-usage-monitor/scripts/claude-usage-poll.sh`
+   - Schedule: every minute
+   - Command: `bash ~/.openclaw/workspace/clawboard/core/services/claude-usage-monitor/scripts/claude-usage-poll.sh`
 
 5. If NOT authenticated or `claude login` hasn't been run, tell the user:
    > For Claude usage monitoring, you need to run `claude login` in your terminal once (it opens a browser). After that, I'll handle the rest automatically. Skip this for now if you don't need it — the dashboard works fine without it.
@@ -182,8 +176,8 @@ After=network.target
 [Service]
 Type=simple
 User=$(whoami)
-WorkingDirectory=$(echo ~/.openclaw/workspace/dashboard)
-EnvironmentFile=$(echo ~/.openclaw/workspace/dashboard/.env)
+WorkingDirectory=$(echo ~/.openclaw/workspace/clawboard)
+EnvironmentFile=$(echo ~/.openclaw/workspace/clawboard/.env)
 ExecStart=$(which node) core/server.js
 Restart=on-failure
 RestartSec=5
@@ -246,7 +240,7 @@ Then update your memory:
 ## Dashboard
 - Running at https://<domain> on port 3700
 - Systemd service: clawboard.service
-- Config: ~/.openclaw/workspace/dashboard/config.json
-- Secrets: ~/.openclaw/workspace/dashboard/.env (BOT_TOKEN)
+- Config: ~/.openclaw/workspace/clawboard/config.json
+- Secrets: ~/.openclaw/workspace/clawboard/.env (BOT_TOKEN)
 - Nginx: /etc/nginx/sites-available/<domain>
 ```

@@ -26,11 +26,18 @@ A Telegram-authenticated, modular web dashboard for your OpenClaw agent. Live sy
 - An OpenClaw instance running on the same machine
 - A Telegram bot (create via [@BotFather](https://t.me/BotFather))
 
-### Option A: Send the ZIP to your agent (easiest)
+### Option A: Send your agent the GitHub link (easiest)
 
-Just send this ZIP file to your OpenClaw agent in Telegram and say:
+Just send your OpenClaw agent the GitHub link and say:
 
-> Set up the dashboard from this ZIP
+> Set up Clawboard from https://github.com/karthikeyan5/clawboard
+
+The agent should:
+```bash
+git clone https://github.com/karthikeyan5/clawboard.git
+cd clawboard
+bash setup.sh
+```
 
 Your agent will read `AGENT-SETUP.md`, ask you a few questions in chat, and handle everything — no terminal needed.
 
@@ -113,7 +120,12 @@ clawboard/
 │   │   ├── hooks.js               ← WordPress-style actions + filters
 │   │   ├── auth.js                ← Telegram auth (Mini App + Login Widget)
 │   │   ├── panels.js              ← Panel discovery, loading, error boundaries
-│   │   └── updater.js             ← Version check + auto-update
+│   │   └── updater.js             ← Version check + GitHub auto-update
+│   ├── services/
+│   │   └── claude-usage-monitor/  ← Polls Anthropic API for usage stats
+│   │       ├── scripts/claude-usage-poll.sh
+│   │       ├── SKILL.md
+│   │       └── README.md
 │   ├── panels/                    ← 9 built-in panels
 │   │   ├── cpu/                   ← manifest.json + api.js + ui.js
 │   │   ├── memory/
@@ -211,15 +223,39 @@ See **AGENT-EXTEND.md** for full instructions.
 1. **Telegram Mini App** — User opens dashboard inline → `initData` validated via HMAC → access granted
 2. **Browser** — User visits URL → clicks Login Widget → Telegram OAuth → signed cookie → redirected
 
-## Claude Usage Monitoring (Optional)
+## Claude Usage Monitoring (Built-in)
 
-If you have an **Anthropic Claude Max subscription**, the Claude Usage panel shows real-time stats (5-hour session %, 7-day weekly %, per-model breakdown).
+Clawboard includes a built-in Claude usage monitor at `core/services/claude-usage-monitor/`. If you have an **Anthropic Claude Max subscription**, the Claude Usage panel shows real-time stats (5-hour session %, 7-day weekly %, per-model breakdown).
 
-1. The bundled `claude-usage-monitor/` skill writes `claude-usage.json` to your workspace
-2. The panel reads this file automatically
-3. If the file doesn't exist, the panel is simply hidden — no errors
+### How it works
 
-**No Claude Max?** The dashboard works perfectly fine. You get 8 panels instead of 9.
+1. The script `core/services/claude-usage-monitor/scripts/claude-usage-poll.sh` reads your Claude Code OAuth credentials
+2. It polls the Anthropic usage API and writes `claude-usage.json` to your workspace
+3. The `claude-usage` dashboard panel reads this file automatically and displays live stats
+4. A cron job runs the script every 60 seconds to keep data fresh
+
+### Setup
+
+1. Authenticate Claude Code with full browser login: `claude login` (NOT `setup-token`)
+2. Set up a cron job to poll usage:
+   ```bash
+   # Via OpenClaw cron:
+   openclaw cron add --name "claude-usage-poll" --schedule "*/1 * * * *" \
+     --command "bash /path/to/clawboard/core/services/claude-usage-monitor/scripts/claude-usage-poll.sh"
+   ```
+3. The dashboard panel auto-detects the usage file — no extra config needed
+
+### What it tracks
+
+| Metric | Description |
+|--------|-------------|
+| 5-hour session % | Rolling 5-hour window utilization |
+| 7-day weekly % | Rolling weekly usage (all models) |
+| Opus % | Weekly Opus-specific cap usage |
+| Sonnet % | Weekly Sonnet-specific cap usage |
+| Reset times | When each capacity window resets |
+
+**No Claude Max?** The dashboard works perfectly fine without it. The panel is simply hidden — you get 8 panels instead of 9.
 
 ## Nginx Reverse Proxy
 
