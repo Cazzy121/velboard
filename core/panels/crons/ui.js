@@ -38,9 +38,9 @@ export default function CronsPanel({ data, error, connected, lastUpdate, api, co
   const [open, setOpen] = useState(false);
 
   if (error) return html`<div class=${cls('error')}>${error.error}</div>`;
-  if (!data) return html`<div class=${cls('loading')}>Loading...</div>`;
+  const d = data || [];
 
-  const jobs = [...data].sort((a, b) => {
+  const jobs = [...d].sort((a, b) => {
     if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
     return (a.name || '').localeCompare(b.name || '');
   });

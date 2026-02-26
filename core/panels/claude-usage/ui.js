@@ -31,10 +31,10 @@ const fmtFetchedAt = (iso) => {
 
 export default function ClaudeUsagePanel({ data, error, connected, lastUpdate, api, config, cls }) {
   if (error) return html`<div class=${cls('error')}>${error.error}</div>`;
-  if (!data) return html`<div class=${cls('loading')}>Loading...</div>`;
+  const d = data || { five_hour: { utilization_pct: 0 }, seven_day: { utilization_pct: 0 } };
 
   const keys = ['five_hour', 'seven_day', 'seven_day_opus', 'seven_day_sonnet'];
-  const cards = keys.filter(k => data[k] && data[k].utilization_pct != null);
+  const cards = keys.filter(k => d[k] && d[k].utilization_pct != null);
 
   return html`
     <div class=${cls('wrap')}>
@@ -45,12 +45,12 @@ export default function ClaudeUsagePanel({ data, error, connected, lastUpdate, a
           Claude Usage
         </span>
         <span style="font-size:10px;color:var(--text-dim);font-family:'JetBrains Mono',monospace">
-          ${fmtFetchedAt(data.fetched_at)}
+          ${data ? fmtFetchedAt(d.fetched_at) : ''}
         </span>
       </div>
       <div class=${cls('grid')} style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         ${cards.map(k => {
-          const info = data[k];
+          const info = d[k];
           const pct = info.utilization_pct;
           const color = barColor(pct);
           return html`

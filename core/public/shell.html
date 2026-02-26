@@ -211,14 +211,26 @@
       // Auth + load panels
       useEffect(() => {
         (async () => {
-          const auth = await checkAuth();
-          if (!auth) return;
-          setAuthData(auth);
-
-          const res = await fetch('/api/panels');
-          const panelList = await res.json();
-          setPanels(panelList);
-          setLoading(false);
+          const isMiniApp = !!(window.Telegram?.WebApp?.initData);
+          if (isMiniApp) {
+            // Mini App: skip HTTP auth, start WS immediately
+            setAuthData({ ok: true, miniApp: true });
+            const res = await fetch('/api/panels');
+            const panelList = await res.json();
+            setPanels(panelList);
+            setLoading(false);
+          } else {
+            // Browser: auth + panel list in parallel
+            const [auth, panelRes] = await Promise.all([
+              checkAuth(),
+              fetch('/api/panels')
+            ]);
+            if (!auth) return;
+            setAuthData(auth);
+            const panelList = await panelRes.json();
+            setPanels(panelList);
+            setLoading(false);
+          }
         })();
       }, []);
 

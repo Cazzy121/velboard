@@ -2,7 +2,28 @@ import { html, useState, useEffect } from '/core/vendor/preact-htm.js';
 
 export default function OpenclawStatusPanel({ data, error, connected, lastUpdate, api, config, cls }) {
   if (error) return html`<div class=${cls('error')}>${error.error}</div>`;
-  if (!data) return html`<div class=${cls('loading')}>Loading...</div>`;
+  if (!data) {
+    const rows = [
+      { label: 'Status', value: '—' },
+      { label: 'Version', value: '—' },
+      { label: 'Heartbeat', value: '—' },
+      { label: 'Sessions', value: '—' },
+      { label: 'Channel', value: '—' },
+      { label: 'Memory', value: '—' },
+    ];
+    return html`
+      <div class=${cls('wrap')}>
+        <div class=${cls('icon')}>🔧</div>
+        <div class=${cls('label')} style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);margin-bottom:12px">OPENCLAW STATUS</div>
+        ${rows.map(r => html`
+          <div class=${cls('row')} style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+            <span style="color:var(--text-dim);font-size:12px">${r.label}</span>
+            <span style="font-size:12px;font-weight:500;color:var(--text)">${r.value}</span>
+          </div>
+        `)}
+      </div>
+    `;
+  }
 
   if (data.error || !data.online) {
     return html`<div class=${cls('offline')} style="color:var(--red);font-size:13px">⛔ Offline — ${data.error || 'unknown'}</div>`;

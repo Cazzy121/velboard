@@ -9,19 +9,18 @@ const fmtBytes = (b) => {
 
 export default function MemoryPanel({ data, error, connected, lastUpdate, api, config, cls }) {
   if (error) return html`<div class=${cls('error')}>${error.error}</div>`;
-  if (!data) return html`<div class=${cls('loading')}>Loading...</div>`;
-
-  const color = barColor(data.pct);
+  const d = data || { pct: 0, used: 0, total: 0 };
+  const color = barColor(d.pct);
 
   return html`
     <div class=${cls('wrap')}>
       ${!connected && html`<div class=${cls('stale')}>⚠ Stale</div>`}
       <div class=${cls('icon')}>🧠</div>
       <div class=${cls('label')}>MEMORY</div>
-      <div class=${cls('value')} style="color: ${color}">${data.pct}%</div>
-      <div class=${cls('sub')}>${fmtBytes(data.used)} / ${fmtBytes(data.total)}</div>
+      <div class=${cls('value')} style="color: ${color}">${data ? d.pct + '%' : '—'}</div>
+      <div class=${cls('sub')}>${data ? fmtBytes(d.used) + ' / ' + fmtBytes(d.total) : '— / —'}</div>
       <div class=${cls('bar')}>
-        <div class=${cls('fill')} style="width: ${data.pct}%; background: ${color}"></div>
+        <div class=${cls('fill')} style="width: ${d.pct}%; background: ${color}"></div>
       </div>
     </div>
   `;

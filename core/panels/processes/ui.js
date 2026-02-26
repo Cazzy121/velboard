@@ -2,13 +2,13 @@ import { html, useState, useEffect } from '/core/vendor/preact-htm.js';
 
 export default function ProcessesPanel({ data, error, connected, lastUpdate, api, config, cls }) {
   if (error) return html`<div class=${cls('error')}>${error.error}</div>`;
-  if (!data) return html`<div class=${cls('loading')}>Loading...</div>`;
+  const d = data || { total: '—', running: '—', sleeping: '—', os: '—' };
 
   const rows = [
-    { label: 'Total', value: data.total, style: '' },
-    { label: 'Running', value: data.running, style: 'color: var(--green)' },
-    { label: 'Sleeping', value: data.sleeping, style: '' },
-    { label: 'OS', value: data.os || '—', style: 'font-size: 11px' },
+    { label: 'Total', value: d.total, style: '' },
+    { label: 'Running', value: d.running, style: 'color: var(--green)' },
+    { label: 'Sleeping', value: d.sleeping, style: '' },
+    { label: 'OS', value: d.os || '—', style: 'font-size: 11px' },
   ];
 
   return html`

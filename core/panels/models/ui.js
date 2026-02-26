@@ -7,13 +7,13 @@ const shortModel = (m) => {
 
 export default function ModelsPanel({ data, error, connected, lastUpdate, api, config, cls }) {
   if (error) return html`<div class=${cls('error')}>${error.error}</div>`;
-  if (!data) return html`<div class=${cls('loading')}>Loading...</div>`;
+  const d = data || { primary: '—' };
 
   const rows = [
-    { label: 'Primary', model: data.primary },
-    ...(data.fallbacks || []).map((m, i) => ({ label: `Fallback ${i + 1}`, model: m })),
-    ...(data.subagent ? [{ label: 'Sub-agents', model: data.subagent }] : []),
-    ...(data.heartbeat ? [{ label: 'Heartbeat', model: data.heartbeat }] : []),
+    { label: 'Primary', model: d.primary },
+    ...(d.fallbacks || []).map((m, i) => ({ label: `Fallback ${i + 1}`, model: m })),
+    ...(d.subagent ? [{ label: 'Sub-agents', model: d.subagent }] : []),
+    ...(d.heartbeat ? [{ label: 'Heartbeat', model: d.heartbeat }] : []),
   ];
 
   return html`
@@ -30,9 +30,9 @@ export default function ModelsPanel({ data, error, connected, lastUpdate, api, c
         </div>
       `)}
       <div class=${cls('meta')} style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--text-dim);font-family:'JetBrains Mono',monospace">
-        ${data.channel && html`<span>📡 ${data.channel}</span>`}
-        ${data.context && html`<span>📚 ${data.context} context</span>`}
-        ${data.heartbeatInterval && html`<span>💓 ${data.heartbeatInterval}</span>`}
+        ${d.channel && html`<span>📡 ${d.channel}</span>`}
+        ${d.context && html`<span>📚 ${d.context} context</span>`}
+        ${d.heartbeatInterval && html`<span>💓 ${d.heartbeatInterval}</span>`}
       </div>
     </div>
   `;
