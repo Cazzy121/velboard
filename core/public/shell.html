@@ -79,6 +79,46 @@
       }
     }
 
+    // ── Data Caching ──
+    const CACHE_KEY = 'clawboard-cache';
+    const CACHE_TTL = 60000; // 60 seconds
+
+    function saveCache(panelData) {
+      const payload = JSON.stringify({ ts: Date.now(), panels: panelData });
+      const tgStorage = tg?.DeviceStorage;
+      if (tgStorage) {
+        try { tgStorage.setItem(CACHE_KEY, payload); } catch {}
+      }
+      try { localStorage.setItem(CACHE_KEY, payload); } catch {}
+    }
+
+    function loadCache(callback) {
+      function tryParse(value) {
+        if (!value) return null;
+        try {
+          const cache = JSON.parse(value);
+          if (cache && (Date.now() - cache.ts) < CACHE_TTL) return cache.panels;
+        } catch {}
+        return null;
+      }
+
+      const tgStorage = tg?.DeviceStorage;
+      if (tgStorage) {
+        try {
+          tgStorage.getItem(CACHE_KEY, (err, value) => {
+            if (!err && value) {
+              const panels = tryParse(value);
+              if (panels) return callback(panels);
+            }
+            // Fallback to localStorage
+            callback(tryParse(localStorage.getItem(CACHE_KEY)));
+          });
+          return;
+        } catch {}
+      }
+      callback(tryParse(localStorage.getItem(CACHE_KEY)));
+    }
+
     // ── Auth ──
     async function checkAuth() {
       try {
@@ -208,6 +248,21 @@
         }).catch(() => {});
       }, []);
 
+      // Load cached data immediately for fast render
+      useEffect(() => {
+        loadCache((cached) => {
+          if (cached) {
+            setPanelDataMap(prev => {
+              const next = { ...prev };
+              for (const [k, v] of Object.entries(cached)) {
+                if (v !== null && v !== undefined) next[k] = v;
+              }
+              return next;
+            });
+          }
+        });
+      }, []);
+
       // Auth + load panels
       useEffect(() => {
         (async () => {
@@ -283,6 +338,9 @@
                   if (msg.crons) pd.crons = msg.crons;
                   if (msg.agent) pd.models = msg.agent;
                 }
+
+                // Cache panel data for fast reload
+                saveCache(pd);
 
                 setPanelDataMap(prev => {
                   const next = { ...prev };
