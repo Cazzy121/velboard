@@ -6,7 +6,7 @@
   "description": "Control your browser remotely via WebSocket relay",
   "author": "core",
   "position": 100,
-  "size": "medium",
+  "size": "full",
   "category": "tools",
   "refresh": "manual",
   "requires": [],
