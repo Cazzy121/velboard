@@ -29,6 +29,10 @@
     "order": ["cpu", "memory", "disk", "uptime", "processes", "claude-usage", "crons", "models", "openclaw-status"],
     "disabled": []
   },
+  "routes": {
+    "/menayra/": "custom/menayra-site",
+    "/screenshots/": "custom/screenshots"
+  },
   "plugins": [],
   "updates": {
     "autoCheck": true,

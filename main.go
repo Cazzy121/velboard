@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"clawboard/internal/auth"
+	"clawboard/internal/hooks"
 	"clawboard/internal/panels"
 	"clawboard/internal/server"
 )
@@ -52,6 +53,9 @@ type AppConfig struct {
 		Order    []string `json:"order"`
 		Disabled []string `json:"disabled"`
 	} `json:"panels"`
+
+	// Custom routes
+	Routes map[string]string `json:"routes"`
 
 	// Server
 	Server struct {
@@ -143,6 +147,10 @@ func main() {
 		workspace = filepath.Dir(rootDir)
 	}
 
+	// Init hooks
+	hookEngine := hooks.New()
+	hookEngine.Emit("core.server.init")
+
 	// Discover panels
 	fmt.Println("\n[Panels] Discovering panels...")
 	registry, report := panels.DiscoverPanels(rootDir)
@@ -165,6 +173,7 @@ func main() {
 		}
 	}
 	fmt.Printf("└────────────────────────────────────────\n\n")
+	hookEngine.Emit("core.panels.discovered", registry, report)
 
 	// Load version
 	version := Version
@@ -225,9 +234,12 @@ func main() {
 		Disabled:     config.Panels.Disabled,
 		Version:      version,
 		PublicConfig: publicConfig,
+		Routes:       config.Routes,
+		Hooks:        hookEngine,
 	}
 
 	handler := server.NewServer(cfg)
+	hookEngine.Emit("core.server.ready")
 
 	addr := fmt.Sprintf(":%d", port)
 	fmt.Printf("[Server] Clawboard v%s running on http://0.0.0.0%s\n\n", version, addr)

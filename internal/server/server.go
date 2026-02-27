@@ -16,11 +16,12 @@ import (
 
 	"clawboard/internal/auth"
 	"clawboard/internal/data"
+	"clawboard/internal/hooks"
 	"clawboard/internal/panels"
 )
 
 type Config struct {
-	RootDir   string
+	RootDir      string
 	Workspace    string
 	Port         int
 	Registry     *panels.Registry
@@ -28,6 +29,8 @@ type Config struct {
 	Disabled     []string
 	Version      string
 	PublicConfig map[string]interface{} // safe fields for landing page
+	Routes       map[string]string      // URL prefix -> directory (relative to RootDir)
+	Hooks        *hooks.Engine
 }
 
 type rateLimiter struct {
@@ -108,10 +111,23 @@ func NewServer(cfg *Config) http.Handler {
 		http.FileServer(http.Dir(vendorDir)).ServeHTTP(w, r)
 	})))
 
-	// Custom menayra route
-	menayraDir := filepath.Join(cfg.RootDir, "custom", "menayra-site")
-	if _, err := os.Stat(menayraDir); err == nil {
-		mux.Handle("/menayra/", http.StripPrefix("/menayra/", http.FileServer(http.Dir(menayraDir))))
+	// Config-driven custom static routes
+	for urlPrefix, dirPath := range cfg.Routes {
+		absDir := dirPath
+		if !filepath.IsAbs(absDir) {
+			absDir = filepath.Join(cfg.RootDir, dirPath)
+		}
+		if _, err := os.Stat(absDir); err == nil {
+			mux.Handle(urlPrefix, http.StripPrefix(urlPrefix, http.FileServer(http.Dir(absDir))))
+		}
+	}
+
+	// Theme support
+	themeFile := filepath.Join(cfg.RootDir, "custom", "theme", "theme.css")
+	if _, err := os.Stat(themeFile); err == nil {
+		mux.HandleFunc("/custom/theme/theme.css", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, themeFile)
+		})
 	}
 
 	// Panel routes - handle both /api/panels and /api/panels/

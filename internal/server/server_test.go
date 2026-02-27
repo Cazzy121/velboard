@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"clawboard/internal/auth"
+	"clawboard/internal/hooks"
 	"clawboard/internal/panels"
 )
 
@@ -57,6 +58,8 @@ func newTestServer(t *testing.T) (http.Handler, string) {
 			"name":  "TestBoard",
 			"emoji": "🧪",
 		},
+		Routes: map[string]string{},
+		Hooks:  hooks.New(),
 	}
 
 	return NewServer(cfg), dir
@@ -336,5 +339,81 @@ func TestNotFoundPath(t *testing.T) {
 	rr := doRequest(h, "GET", "/nonexistent", "", map[string]string{"Accept-Encoding": "identity"})
 	if rr.Code != 404 {
 		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestCustomRoutes(t *testing.T) {
+	auth.Init("test-token", []int64{123}, "test-secret")
+	dir := setupTestDir(t)
+	registry, _ := panels.DiscoverPanels(dir)
+
+	// Create a custom static dir
+	customDir := filepath.Join(dir, "custom", "mysite")
+	os.MkdirAll(customDir, 0755)
+	os.WriteFile(filepath.Join(customDir, "index.html"), []byte("<html>mysite</html>"), 0644)
+
+	cfg := &Config{
+		RootDir:   dir,
+		Workspace: t.TempDir(),
+		Port:      8080,
+		Registry:  registry,
+		Version:   "0.1.0-test",
+		PublicConfig: map[string]interface{}{},
+		Routes: map[string]string{
+			"/mysite/": "custom/mysite",
+		},
+		Hooks: hooks.New(),
+	}
+
+	h := NewServer(cfg)
+	// Request the directory root — FileServer serves index.html
+	rr := doRequest(h, "GET", "/mysite/", "", map[string]string{"Accept-Encoding": "identity"})
+	if rr.Code != 200 {
+		t.Fatalf("expected 200 for custom route, got %d", rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "mysite") {
+		t.Fatalf("expected mysite content, got %s", body)
+	}
+}
+
+func TestThemeServing(t *testing.T) {
+	auth.Init("test-token", []int64{123}, "test-secret")
+	dir := setupTestDir(t)
+	registry, _ := panels.DiscoverPanels(dir)
+
+	// Create theme file
+	themeDir := filepath.Join(dir, "custom", "theme")
+	os.MkdirAll(themeDir, 0755)
+	os.WriteFile(filepath.Join(themeDir, "theme.css"), []byte("body { color: red; }"), 0644)
+
+	cfg := &Config{
+		RootDir:      dir,
+		Workspace:    t.TempDir(),
+		Port:         8080,
+		Registry:     registry,
+		Version:      "0.1.0-test",
+		PublicConfig: map[string]interface{}{},
+		Routes:       map[string]string{},
+		Hooks:        hooks.New(),
+	}
+
+	h := NewServer(cfg)
+	rr := doRequest(h, "GET", "/custom/theme/theme.css", "", map[string]string{"Accept-Encoding": "identity"})
+	if rr.Code != 200 {
+		t.Fatalf("expected 200 for theme, got %d", rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "color: red") {
+		t.Fatalf("expected theme CSS, got %s", body)
+	}
+}
+
+func TestThemeNotPresent(t *testing.T) {
+	h, _ := newTestServer(t)
+	// No theme file created, should 404
+	rr := doRequest(h, "GET", "/custom/theme/theme.css", "", map[string]string{"Accept-Encoding": "identity"})
+	if rr.Code != 404 {
+		t.Fatalf("expected 404 when no theme, got %d", rr.Code)
 	}
 }
