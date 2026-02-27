@@ -1,5 +1,5 @@
 /**
- * OpenClaw Dashboard Kit v2.1 — Core Server
+ * OpenClaw Dashboard Kit v2.2 — Core Server
  * 
  * Modular panel architecture with async hooks + contract v1.0
  * Preserves ALL functionality from v1

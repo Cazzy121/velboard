@@ -31,7 +31,7 @@ Clawboard gives your OpenClaw agent a live web dashboard. WebSocket-powered. Tel
 
 Open a tab. See everything. Done.
 
-- **9 modular panels** — CPU, Memory, Disk, Uptime, Processes, Claude Usage, Crons, Models, OpenClaw Status
+- **9 modular panels** — CPU, Memory, Disk, Uptime, Processes, Claude Usage, Crons, Models, OpenClaw Status (plus `_test` for development)
 - **Preact+HTM UI** — Zero build step, native ES modules, ~400ms load
 - **Panel contract v1.0** — Standardized props, scoped CSS via `cls()`, error boundaries
 - **54 unit tests** — Co-located test.js files, `node:test` + `node:assert`

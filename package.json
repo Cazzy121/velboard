@@ -1,10 +1,10 @@
 {
   "name": "clawboard",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "description": "Telegram-authenticated dashboard for OpenClaw agents — live system metrics, usage stats, and personality landing page.",
-  "main": "server.js",
+  "main": "core/server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node core/server.js",
     "test": "node --test 'core/**/*.test.js' 'core/panels/*/test.js'",
     "test:watch": "node --test --watch 'core/**/*.test.js' 'core/panels/*/test.js'",
     "smoke": "bash scripts/smoke.sh",

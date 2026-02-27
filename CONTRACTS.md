@@ -12,7 +12,7 @@
 ├── manifest.json    ← REQUIRED
 ├── api.js           ← REQUIRED (CommonJS)
 ├── ui.js            ← REQUIRED (ESM, Preact+HTM)
-└── test.js          ← OPTIONAL (ESM)
+└── test.js          ← OPTIONAL (CommonJS)
 ```
 
 `{panel-id}` = folder name = manifest id = API route segment.
@@ -34,10 +34,10 @@
   "dataSchema": {
     "type": "object",
     "properties": {
-      "cpu": { "type": "number" },
+      "load": { "type": "number" },
       "cores": { "type": "integer" }
     },
-    "required": ["cpu"]
+    "required": ["load", "cores"]
   },
   "rateLimit": {
     "windowMs": 60000,
@@ -66,14 +66,17 @@
 
 ### api.js (CommonJS)
 ```js
-module.exports = ({ hooks, config, auth, panel, deps }) => ({
+module.exports = ({ hooks, config, auth, panel }) => ({
   endpoint: `/api/panels/${panel.id}`,
 
   handler: async (req, res) => {
     const user = auth.check(req);
     if (!user) return res.status(403).json({ error: 'Unauthorized' });
 
-    const data = { cpu: getCpuUsage(), cores: os.cpus().length };
+    // Your data logic here (see core/panels/cpu/api.js for a real example)
+    const si = require('systeminformation');
+    const cpu = await si.currentLoad();
+    const data = { load: Math.round(cpu.currentLoad * 10) / 10, cores: cpu.cpus?.length || 0 };
     const filtered = await hooks.filter(`panel.${panel.id}.data`, data, { user });
 
     res.json(filtered);
@@ -82,29 +85,12 @@ module.exports = ({ hooks, config, auth, panel, deps }) => ({
 ```
 
 **Rules:**
-- `module.exports` = function receiving context, returning `{ endpoint, handler }`
+- `module.exports` = function receiving `{ hooks, config, auth, panel }`, returning `{ endpoint, handler }`
 - `endpoint` MUST be `/api/panels/{id}`
-- Handler MUST call `auth.check(req)` first
+- Handler MUST call `auth.check(req)` first (supports both cookie auth and Mini App `initData` POST body)
 - Return MUST match `dataSchema`
 - Use `hooks.filter()` before responding
 - No side effects outside handler. No global state. No timers.
-
-### `deps` (Dependency Injection for Testability)
-
-Core injects `deps` into api.js context:
-
-| Key | Type | Wraps |
-|-----|------|-------|
-| `deps.exec(cmd, args)` | async → stdout string | `child_process.execFile` |
-| `deps.readFile(path, enc)` | async → string | `fs.promises.readFile` |
-| `deps.fetch(url, opts)` | async → Response | `global.fetch` |
-
-**Rules:**
-- `deps` is optional — panels MAY use direct `require()` for backward compat
-- Panels SHOULD use `deps` when available for testability
-- Core provides real implementations in production
-- Only these 3 to start. Additive expansion is non-breaking.
-- In tests, inject mocks via `deps` to avoid monkey-patching
 
 ### ui.js (ESM, Preact+HTM)
 ```js
@@ -142,29 +128,39 @@ export default function CpuPanel({ data, error, connected, lastUpdate, api, conf
 - No direct DOM manipulation
 - Shared sub-components accept `className` prop, not `cls()`
 
-### test.js (Optional, ESM)
+### test.js (Optional, CommonJS)
 ```js
-import { strict as assert } from 'node:assert';
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+const { mockContext, callHandler } = require('../../test-utils');
 
-export const fixtures = [
-  { name: 'normal', data: { cpu: 45, cores: 4 } },
-  { name: 'high', data: { cpu: 95, cores: 8 } },
-  { name: 'null-data', data: null },
-];
+describe('cpu panel', () => {
+  it('api returns valid data shape', async () => {
+    const ctx = mockContext({ panel: { id: 'cpu', manifest: {} } });
+    const api = require('./api.js')(ctx);
+    const { statusCode, data } = await callHandler(api.handler);
+    assert.equal(statusCode, 200);
+    assert.equal(typeof data.load, 'number');
+    assert.equal(typeof data.cores, 'number');
+  });
 
-export const assertions = (html, fixture) => {
-  if (fixture.data === null) {
-    assert(html.includes('Loading'), 'should show loading state');
-    return;
-  }
-  assert(html.includes(fixture.data.cpu + '%'), `should contain ${fixture.data.cpu}%`);
-};
+  it('returns 403 when auth fails', async () => {
+    const ctx = mockContext({
+      panel: { id: 'cpu', manifest: {} },
+      auth: { check: () => null },
+    });
+    const api = require('./api.js')(ctx);
+    const { statusCode } = await callHandler(api.handler);
+    assert.equal(statusCode, 403);
+  });
+});
 ```
 
 **Rules:**
-- `fixtures` = array of `{ name: string, data: object|null }`. Must include a `null` fixture.
-- `assertions` = function `(renderedHtml: string, fixture: object) => void`. Uses Node `assert`.
-- Core test runner: renders each fixture via `preact-render-to-string`, runs assertions.
+- Uses `node:test` + `node:assert/strict` (CommonJS, matches api.js)
+- Use `mockContext()` and `callHandler()` from `core/test-utils.js`
+- Test the API handler: valid data shape, auth rejection, hook application
+- Run with `npm test`
 
 ---
 
@@ -212,8 +208,8 @@ module.exports = (app, { hooks, config, auth }) => {
 ## CSS Contract
 
 ```css
-/* Use CSS variables — never hardcode colors */
-:root { --bg, --card, --accent, --text, --text-dim, --green, --yellow, --red }
+/* Use CSS variables — never hardcode colors (see core/public/core.css for full list) */
+:root { --bg, --bg2, --card, --card-border, --accent, --accent-dim, --accent-glow, --text, --text-dim, --text-mid, --green, --green-dim, --yellow, --yellow-dim, --red, --red-dim, --cyan, --cyan-dim }
 
 /* Prefixes */
 .p-{panel-id}-{name}    /* Panels (use cls() helper) */
@@ -240,6 +236,16 @@ Passed to ui.js as `error` prop. Panels should render error state, not crash.
 
 ---
 
+## WebSocket Data Flow
+
+Built-in panels receive live data via WebSocket (2-second interval). The server pushes data for all core panels in a single message.
+
+**Custom panels do NOT receive WebSocket updates.** Custom panels must poll their own `/api/panels/{id}` endpoint using the `api.fetch()` prop. This is a known limitation — v3+ may add a registration mechanism for custom panel WebSocket data.
+
+## `refreshMs` — Currently Informational
+
+The `refreshMs` field in manifest.json is part of the contract but currently has no effect on the server. All core panels receive data at a fixed 2-second WebSocket interval. Custom panels control their own refresh via `api.fetch()`. Per-panel refresh intervals are planned for a future version.
+
 ## Core Guarantees
 
 1. **Panels are unmounted, never hidden.** `useEffect` cleanup always runs.
@@ -256,7 +262,7 @@ Passed to ui.js as `error` prop. Panels should render error state, not crash.
 |------|--------|-----|
 | `api.js` | CommonJS (`module.exports`) | Node.js Express = CJS native |
 | `ui.js` | ESM (`export default`) | Browser = ESM native |
-| `test.js` | ESM (`export`) | Matches ui.js for consistency |
+| `test.js` | CommonJS (`require`) | Matches api.js (tests test the API) |
 | `routes/*.js` | CommonJS | Server-side |
 | `hooks.js` | CommonJS | Server-side |
 

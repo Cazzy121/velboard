@@ -59,10 +59,12 @@ cp -r core/templates/panel-example custom/panels/my-panel
   "contractVersion": "1.0",
   "description": "What this panel shows",
   "author": "agent",
-  "position": 10,
+  "position": 100,
   "size": "half",
   "refreshMs": 5000,
   "requires": [],
+  "capabilities": ["fetch"],
+  "dataSchema": { "type": "object", "properties": {} },
   "config": {}
 }
 ```
@@ -81,12 +83,11 @@ cp -r core/templates/panel-example custom/panels/my-panel
 
 ```javascript
 // Runs in Node.js on the server
-// Receives context: { hooks, config, auth, panel, deps }
-//   - panel: the manifest object for this panel
-//   - deps: { si } — shared systeminformation instance (avoids duplicate imports)
+// Receives context: { hooks, config, auth, panel }
+//   - panel: { id, manifest, cls, config } for this panel
 // Must return: { endpoint: string, handler: async (req, res) => void }
 
-module.exports = ({ hooks, config, auth, panel, deps }) => ({
+module.exports = ({ hooks, config, auth, panel }) => ({
   endpoint: `/api/panels/${panel.id}`,
   handler: async (req, res) => {
     // Auth check (required for all panel endpoints)
@@ -106,8 +107,6 @@ module.exports = ({ hooks, config, auth, panel, deps }) => ({
   }
 });
 ```
-
-**Note on `deps`:** The `deps` context field provides shared dependencies (e.g. `deps.si` for systeminformation). Use this instead of importing heavy modules yourself to avoid duplicate instances and reduce memory usage.
 
 ### Step 4: Write ui.js (browser-side Preact+HTM component)
 
@@ -177,23 +176,22 @@ describe('my-panel', () => {
 
 ### Available CSS Variables
 
+See `core/public/core.css` for the full list. Key variables:
+
 ```css
-var(--color-bg)          /* #06060e — page background */
-var(--color-bg2)         /* #0c0c18 — slightly lighter bg */
-var(--color-card)        /* #10101e — card background */
-var(--color-card-border) /* rgba(accent, 0.08) */
-var(--color-accent)      /* from config.json accent field */
-var(--color-accent-dim)  /* accent at 15% opacity */
-var(--color-text)        /* #e8e8f0 — primary text */
-var(--color-text-dim)    /* #6a6a7a — secondary text */
-var(--color-text-mid)    /* #9a9aaa — mid text */
-var(--color-red)         /* #ef4444 */
-var(--color-green)       /* #4ade80 */
-var(--color-yellow)      /* #fbbf24 */
-var(--color-cyan)        /* #22d3ee */
-var(--font-heading)      /* Space Grotesk */
-var(--font-body)         /* Inter */
-var(--font-mono)         /* JetBrains Mono */
+var(--bg)          /* #06060e — page background */
+var(--bg2)         /* #0c0c18 — slightly lighter bg */
+var(--card)        /* #10101e — card background */
+var(--card-border) /* rgba(accent, 0.08) */
+var(--accent)      /* from config.json accent field */
+var(--accent-dim)  /* accent at 15% opacity */
+var(--text)        /* #e8e8f0 — primary text */
+var(--text-dim)    /* #6a6a7a — secondary text */
+var(--text-mid)    /* #9a9aaa — mid text */
+var(--red)         /* #ef4444 */
+var(--green)       /* #4ade80 */
+var(--yellow)      /* #fbbf24 */
+var(--cyan)        /* #22d3ee */
 ```
 
 ---
@@ -224,10 +222,10 @@ Create `custom/hooks.js` to modify core behavior:
 
 ```javascript
 // custom/hooks.js
-// Receives the hooks engine as argument
+// Receives the hooks engine + context ({ config, auth })
 // All hooks are optional — only register what you need
 
-module.exports = (hooks) => {
+module.exports = (hooks, { config, auth }) => {
 
   // --- FILTERS (modify data passing through) ---
 
@@ -252,12 +250,12 @@ module.exports = (hooks) => {
   // --- ACTIONS (fire-and-forget events) ---
 
   // Run code when server starts
-  hooks.on('server.init', (app) => {
+  hooks.on('core.server.init', (app, config) => {
     console.log('Server initializing...');
   });
 
   // Run code when server is ready
-  hooks.on('server.ready', (server) => {
+  hooks.on('core.server.ready', (server, config) => {
     console.log('Server listening!');
   });
 
@@ -272,11 +270,11 @@ module.exports = (hooks) => {
 
 | Hook Name | Type | Arguments | Description |
 |-----------|------|-----------|-------------|
-| `server.init` | action | `(app)` | Express app created, register routes |
-| `server.ready` | action | `(server)` | Server listening |
-| `panels.discovered` | action | `(registry)` | All panels found |
-| `panels.order` | filter | `(panels, config)` | Modify panel display order |
-| `panel.{id}.data` | filter | `(data)` | Modify panel API response |
+| `core.server.init` | action | `(app, config)` | Express app created, register routes |
+| `core.server.ready` | action | `(server, config)` | Server listening |
+| `core.panels.discovered` | action | `(registry)` | All panels found |
+| `core.panels.order` | filter | `(panels, config)` | Modify panel display order |
+| `panel.{id}.data` | filter | `(data, { user })` | Modify panel API response |
 | `ws.payload` | filter | `(payload)` | Modify WebSocket message |
 | `config.loaded` | filter | `(config)` | Modify config after loading |
 | `auth.validated` | action | `(user, method)` | User authenticated |

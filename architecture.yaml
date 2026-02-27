@@ -1,5 +1,5 @@
 system: clawboard
-version: "2.1.0"
+version: "2.2.0"
 contract_version: "1.0"
 entrypoint: core/server.js
 framework: preact-htm
@@ -23,9 +23,9 @@ panel_contract:
     api: api.js                # required, cjs
     ui: ui.js                  # required, esm, preact function component
     test: test.js              # optional, esm
-  api_signature: "({ hooks, config, auth, panel, deps }) => { endpoint, handler }"
+  api_signature: "({ hooks, config, auth, panel }) => { endpoint, handler }"
   ui_signature: "({ data, error, connected, lastUpdate, api, config, cls }) => VNode"
-  test_signature: "{ fixtures: [{name, data}], assertions: (html, fixture) => void }"
+  test_signature: "node:test describe/it blocks testing api.js handler (CommonJS)"
   naming:
     folder: lowercase-hyphenated
     component: PascalCase of folder (cpu → CpuPanel)
@@ -62,7 +62,7 @@ css_contract:
     panel: p-{panel-id}-
     plugin: plg-{plugin-name}-
     core: c-
-  variables: [bg, card, accent, text, text-dim, green, yellow, red, green-dim, yellow-dim, red-dim]
+  variables: [bg, bg2, card, card-border, accent, accent-dim, accent-glow, text, text-dim, text-mid, green, green-dim, yellow, yellow-dim, red, red-dim, cyan, cyan-dim]
   rules:
     - use cls() helper in panels
     - use css variables for colors
