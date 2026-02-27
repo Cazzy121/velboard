@@ -1,17 +1,7 @@
-# User-owned files (never commit)
-custom/
-plugins/
-config.json
-.env
-.cookie-secret
-node_modules/
-
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
 # OS
 .DS_Store
 Thumbs.db
-clawboard
+
+# Secrets
+.cookie-secret
+.env

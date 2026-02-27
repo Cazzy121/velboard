@@ -1,33 +1,33 @@
-# Clawboard — Roadmap
+# Clawboard Roadmap
 
-Clawboard is built on [Vel](https://github.com/essdee/vel). Framework features (store, pages, roles, events) come from Vel. This roadmap covers Clawboard-specific panels and OpenClaw integration.
-
----
-
-### v1.0 — Dashboard ✅ CURRENT
-- 9 built-in panels (CPU, Memory, Disk, Uptime, Processes, Claude Usage, Crons, Models, OpenClaw Status)
-- Real-time WebSocket updates
-- Telegram auth
-- Config-driven personality (name, emoji, accent, traits, quote)
-- Claude Max usage monitoring (5-hour + 7-day quotas)
+Clawboard is a panel pack for [Vel](https://github.com/essdee/vel). This roadmap covers **panels and OpenClaw-specific features**. For framework features (store, pages, roles, events), see the [Vel Roadmap](https://github.com/essdee/vel/blob/main/ROADMAP.md).
 
 ---
 
-### v1.1 — Enhanced Monitoring
-- **Network panel** — bandwidth, connections, latency
-- **Logs panel** — tail OpenClaw logs with filtering
-- **Alerts** — threshold-based notifications via Telegram
+## v1.0 — Monitoring Dashboard ✅ (Current)
 
-### v1.2 — Agent Insights
-- **Session history panel** — past conversations, token usage per session
-- **Cost tracker panel** — daily/weekly/monthly spend across models
-- **Memory panel** — visualize agent memory entries
+9 panels for OpenClaw agent monitoring:
+- System: CPU, Memory, Disk, Uptime, Processes
+- OpenClaw: Status, Cron Jobs, Models
+- Claude: Usage quotas with reset timers
 
-### v1.3 — Management
-- **Plugin manager panel** — install/update/remove plugins from the dashboard
-- **Config editor panel** — edit config.json from the UI
-- **Backup panel** — one-click workspace backups
+## v1.1 — Enhanced Panels (Planned)
 
----
+- [ ] **Network panel** — bandwidth, connections, latency
+- [ ] **Logs panel** — tail OpenClaw logs with filtering
+- [ ] **Tasks panel** — active sub-agents, session list
+- [ ] **Cost panel** — token usage, estimated spend per day/week/month
+- [ ] Interactive cron editor (create/edit crons from dashboard)
 
-*Framework features (store, forms, pages, roles, events) are tracked in the [Vel roadmap](https://github.com/essdee/vel/blob/main/ROADMAP.md).*
+## v1.2 — Multi-Agent (Planned)
+
+- [ ] Monitor multiple OpenClaw agents from one dashboard
+- [ ] Agent selector in UI
+- [ ] Cross-agent metrics comparison
+
+## v2.0 — Management (Planned, requires Vel v2 store)
+
+- [ ] Session management — view, send messages, kill sessions
+- [ ] Memory browser — read/edit agent memory files
+- [ ] Config editor — modify agent config from dashboard
+- [ ] Scheduled reports — daily/weekly email summaries

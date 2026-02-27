@@ -16,36 +16,32 @@
 </p>
 
 <p align="center">
-  <sub>Built on <a href="https://github.com/essdee/vel">Vel</a> — the AI-native Go framework for real-time web apps.</sub>
+  <sub>A <a href="https://github.com/essdee/vel">Vel</a> plugin — 9 panels for monitoring your OpenClaw agent.</sub>
 </p>
 
 ---
 
-## Your agent shouldn't waste tokens telling you the time
+## What is this?
 
-Every *"what's my CPU at?"* costs tokens. Every *"how much Claude quota left?"* — more tokens. You're burning money to ask questions a dashboard could answer in zero seconds, forever.
+Clawboard is a **panel pack** for [Vel](https://github.com/essdee/vel) that turns it into a full monitoring dashboard for [OpenClaw](https://github.com/openclaw/openclaw) AI agents.
 
-**Clawboard is a real-time dashboard for [OpenClaw](https://github.com/openclaw/openclaw) agents.** One binary. No dependencies. Your agent talks less. You see more.
+Stop burning tokens asking your agent routine questions. Open a tab. See everything.
 
----
+## Panels
 
-## What you get
+| Icon | Panel | Size | What it shows |
+|------|-------|------|---------------|
+| ⚡ | **CPU** | half | Load %, core count, color-coded bar |
+| 🧠 | **Memory** | half | Used/total GB, percentage bar |
+| 💾 | **Disk** | half | Usage per mount point |
+| ⏱ | **Uptime** | half | System uptime + hostname |
+| ⚙️ | **Processes** | half | Running/sleeping/total |
+| 🔧 | **OpenClaw Status** | half | Version, sessions, channel |
+| 📊 | **Claude Usage** | full | 5-hour + 7-day quotas with reset countdowns |
+| 📅 | **Cron Jobs** | full | List, status, run/enable/disable buttons |
+| 🤖 | **Models** | full | Primary, fallback, sub-agent routing |
 
-| Panel | What it shows |
-|-------|---------------|
-| ⚡ **CPU** | Load %, core count, color-coded bar |
-| 🧠 **Memory** | Used/total GB, percentage bar |
-| 💾 **Disk** | Usage per mount point |
-| ⏱ **Uptime** | System uptime + hostname |
-| ⚙️ **Processes** | Running/sleeping/total |
-| 🔧 **OpenClaw Status** | Version, sessions, channel |
-| 📊 **Claude Usage** | 5-hour + 7-day quotas with reset countdowns |
-| 📅 **Cron Jobs** | List, status, run/enable/disable buttons |
-| 🤖 **Models** | Primary, fallback, sub-agent routing |
-
-All panels update every 2 seconds via WebSocket. No polling. No refresh.
-
----
+All panels update every 2 seconds via WebSocket. No polling.
 
 ## Screenshots
 
@@ -54,111 +50,79 @@ All panels update every 2 seconds via WebSocket. No polling. No refresh.
 <td><img src="./screenshots/landing-mobile.png" alt="Landing" width="280"></td>
 <td><img src="./screenshots/dashboard-mobile.png" alt="Dashboard" width="280"></td>
 </tr>
-<tr>
-<td align="center"><sub>Personality landing page</sub></td>
-<td align="center"><sub>Live dashboard</sub></td>
-</tr>
 </table>
-
----
 
 ## Install
 
+### Prerequisites
+
+You need [Vel](https://github.com/essdee/vel) installed and running.
+
+### As a plugin
+
 ```bash
+cd your-vel-app/plugins/
 git clone https://github.com/karthikeyan5/clawboard.git
-cd clawboard
-go build -o clawboard .
-cp config.example.json config.json  # edit with your bot token + user IDs
-BOT_TOKEN=your-token ./clawboard
 ```
 
-Open `localhost:3700`. That's it.
+Restart Vel. All 9 panels auto-discover.
 
-### Or let your agent do it
-
-> Set up Clawboard from https://github.com/karthikeyan5/clawboard
-
-It reads [`AGENT-SETUP.md`](./AGENT-SETUP.md) and handles cloning, config, nginx, SSL, systemd — everything.
-
-### Development mode
+### Or copy panels individually
 
 ```bash
-TEST_MODE=true BOT_TOKEN=dummy ./clawboard
+# Copy just the panels you want
+cp -r clawboard/panels/cpu your-vel-app/plugins/clawboard/panels/
+cp -r clawboard/panels/memory your-vel-app/plugins/clawboard/panels/
 ```
 
----
+## Configuration
 
-## How it works
-
-Clawboard is built on [**Vel**](https://github.com/essdee/vel), an AI-native Go framework for real-time panel-based apps.
-
-```
-Browser ←── WebSocket (2s) ──→ Clawboard (Go/Vel) ──→ System metrics
-   │                              │                      (gopsutil)
-   │                              ├──→ OpenClaw CLI
-   │                              ├──→ Claude usage JSON
-   └── Preact+HTM (5KB, no build) └──→ Cron jobs
-```
-
-Clawboard adds **9 OpenClaw-specific panels** on top of Vel's panel architecture, hook engine, auth system, and plugin support.
-
-For framework documentation (panel contracts, hooks, CSS, architecture decisions), see the [Vel docs](https://github.com/essdee/vel).
-
----
-
-## Config
+In your Vel `config.json`, set the panel order:
 
 ```json
 {
-  "name": "My Agent",
-  "emoji": "🤖",
-  "accent": "#c9a84c",
-  "traits": ["Loyal", "Sharp", "Resourceful"],
-  "quote": "I don't wait for permission.",
-  "auth": { "allowedUsers": [123456789] },
-  "panels": { "order": ["cpu", "memory", "disk", "claude-usage"] }
+  "panels": {
+    "order": ["cpu", "memory", "disk", "uptime", "processes", "claude-usage", "openclaw-status", "crons", "models"],
+    "disabled": []
+  }
 }
 ```
 
-Your agent gets a personality. Your dashboard gets a soul.
+### Claude Usage Panel
 
----
+Requires the Claude usage monitor. See [`AGENT-SETUP.md`](./AGENT-SETUP.md) for setup instructions.
 
-## Why not Grafana / Uptime Kuma / Dashy?
+### OpenClaw Status Panel
 
-| | Clawboard | Grafana | Uptime Kuma | Dashy |
-|---|-----------|---------|-------------|-------|
-| Built for AI agents | ✅ | ❌ | ❌ | ❌ |
-| Claude/LLM quota tracking | ✅ | ❌ | ❌ | ❌ |
-| Cron job management | ✅ | ❌ | ❌ | ❌ |
-| Agent installs it | ✅ | ❌ | ❌ | ❌ |
-| Single binary | ✅ | ❌ | ❌ | ❌ |
-| RAM usage | 2.6MB | 200MB+ | 80MB+ | 50MB+ |
-| Setup time | 60 seconds | Hours | Minutes | Minutes |
+Requires `openclaw` CLI in PATH. Shows version, active sessions, memory, and channel info.
 
----
+## Panel Structure
 
-## Extending Clawboard
+Each panel is a self-contained folder:
 
-Clawboard uses Vel's extension system. See the [Vel AGENT-EXTEND.md](https://github.com/essdee/vel/blob/main/AGENT-EXTEND.md) for how to:
-
-- Add custom panels
-- Override core panels
-- Install plugins
-- Register hooks
-- Create themes
-
----
-
-## Contributing
-
-```bash
-go test ./... -race
+```
+panels/cpu/
+├── manifest.json    # Panel metadata (id, name, version, size)
+└── ui.js            # Preact+HTM component
 ```
 
-PRs welcome. See [Vel TESTING.md](https://github.com/essdee/vel/blob/main/TESTING.md) for testing strategy.
+Panels follow the [Vel panel contract](https://github.com/essdee/vel/blob/main/CONTRACTS.md). Data is provided by Vel's built-in system metrics and WebSocket broadcast.
 
----
+## For AI Agents
+
+Send your OpenClaw agent:
+
+> Install Clawboard panels from https://github.com/karthikeyan5/clawboard
+
+It reads [`AGENT-SETUP.md`](./AGENT-SETUP.md) and handles everything.
+
+## Roadmap
+
+See [`ROADMAP.md`](./ROADMAP.md) for planned panels and features.
+
+## Framework
+
+Clawboard is built on **[Vel](https://github.com/essdee/vel)** — an AI-native Go framework for real-time web apps. For framework docs (architecture, contracts, hooks, plugins, testing), see the [Vel repo](https://github.com/essdee/vel).
 
 ## License
 
@@ -167,5 +131,5 @@ PRs welcome. See [Vel TESTING.md](https://github.com/essdee/vel/blob/main/TESTIN
 ---
 
 <p align="center">
-  <sub>Built on <a href="https://github.com/essdee/vel">Vel ⚡</a> for <a href="https://github.com/openclaw/openclaw">OpenClaw</a>.</sub>
+  <sub>Built on <a href="https://github.com/essdee/vel">Vel ⚡</a> for <a href="https://github.com/openclaw/openclaw">OpenClaw</a> agents.</sub>
 </p>

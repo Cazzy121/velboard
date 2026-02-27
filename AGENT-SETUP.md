@@ -1,111 +1,93 @@
-# Agent Setup Instructions — Clawboard
+# Clawboard — Agent Setup Guide
 
-**For AI agents:** Follow these steps when a user asks you to set up Clawboard.
+**For AI agents:** Step-by-step instructions to install Clawboard panels into an existing Vel instance.
 
-Clawboard is built on [Vel](https://github.com/essdee/vel). For framework concepts (panels, hooks, plugins), see the [Vel docs](https://github.com/essdee/vel).
+**Prerequisites:** [Vel](https://github.com/essdee/vel) must be installed and running. See [Vel AGENT-SETUP.md](https://github.com/essdee/vel/blob/main/AGENT-SETUP.md) for framework setup.
 
 ---
 
-## Step 0 — Clone
+## Step 1 — Ask the user
+
+You need:
+1. Where is the Vel app directory? (e.g., `~/.openclaw/workspace/my-dashboard/`)
+2. Do they use Claude Max? (for the Claude usage panel)
+
+## Step 2 — Install panels
 
 ```bash
-cd ~/.openclaw/workspace
+cd <vel-app-dir>/plugins/
 git clone https://github.com/karthikeyan5/clawboard.git
-cd clawboard
 ```
 
-## Step 1 — Ask the user (one message)
+## Step 3 — Configure panel order
 
-> I'll set up your dashboard! I need a few details:
->
-> 1. **Agent name** — What should the dashboard call me?
-> 2. **Emoji** — Pick an emoji for the avatar (e.g. 🤖, ⚡, 🦞)
-> 3. **Subtitle/tagline** — A short line under the name
-> 4. **Role** — What appears as my title
-> 5. **Quote** — A philosophy quote for the landing page
-> 6. **Company name** — For the footer
-> 7. **Accent color** — 🟡 Gold (#c9a84c), 🔴 Red (#e94560), 🔵 Cyan (#00d2ff), 🟣 Purple (#a855f7), 🟢 Green (#22c55e), 🟠 Orange (#f97316), or custom hex
-> 8. **Dashboard domain** — The domain you'll point to this server
-> 9. **Do you have a Claude Max subscription?** — For usage monitoring
-
-Wait for their response before proceeding.
-
-## Step 2 — Get bot credentials
-
-Check if the Telegram bot token is in your OpenClaw config:
-
-```bash
-cat ~/.openclaw/openclaw.json | grep -o '"token"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1
-```
-
-If not found, ask the user for their bot token from @BotFather.
-
-## Step 3 — Get allowed user IDs
-
-You likely know the user's Telegram ID from chat metadata. Ask if anyone else should have access.
-
-## Step 4 — Write config.json
+Edit `<vel-app-dir>/config.json` and add the panel order:
 
 ```json
 {
-  "name": "<agent_name>",
-  "emoji": "<emoji>",
-  "subtitle": "<subtitle>",
-  "role": "<role>",
-  "quote": "<quote>",
-  "traits": ["Loyal", "Sharp", "Resourceful"],
-  "cards": [
-    { "icon": "🧠", "label": "Always Thinking", "text": "Research, analysis, automation — running 24/7." },
-    { "icon": "🔒", "label": "Dashboard", "text": "Sign in with Telegram to see system status." }
-  ],
-  "accent": "<accent_hex>",
-  "accentName": "custom",
-  "company": "<company>",
-  "botUsername": "<bot_username>",
-  "authUrl": "https://<domain>/auth/telegram/callback",
-  "telegramLink": "https://t.me/<bot_username>",
-  "allowedUsers": [<user_ids>],
-  "port": 3700
+  "panels": {
+    "order": ["cpu", "memory", "disk", "uptime", "processes", "claude-usage", "openclaw-status", "crons", "models"],
+    "disabled": []
+  }
 }
 ```
 
-## Step 5 — Write .env
+## Step 4 — Claude Max setup (if applicable)
+
+If the user said yes to Claude Max:
+
+1. Check if `claude` CLI is installed and authenticated:
+   ```bash
+   which claude && cat ~/.claude/.credentials.json | grep -c "user:profile"
+   ```
+
+2. If authenticated, set up the usage monitor:
+   ```bash
+   # Create skill symlink if not already present
+   ln -sf <vel-app-dir>/plugins/clawboard/services/claude-usage-monitor ~/.openclaw/workspace/skills/claude-usage-monitor
+   ```
+
+3. The claude-usage panel will auto-detect usage data from `~/.openclaw/workspace/claude-usage.json`.
+
+## Step 5 — Restart Vel
 
 ```bash
-echo "BOT_TOKEN=<bot_token>" > .env
-chmod 600 .env
+sudo systemctl restart <vel-service-name>
 ```
 
-## Step 6 — Build
+Verify panels loaded:
+```bash
+curl -s http://localhost:3700/api/panels | python3 -m json.tool
+```
+
+All 9 panels should appear with `plugin:clawboard` source.
+
+## Step 6 — Personalize (optional)
+
+Edit `config.json` to customize the landing page:
+
+```json
+{
+  "name": "My Agent",
+  "emoji": "🤖",
+  "role": "AI Assistant",
+  "quote": "Always on. Always ready.",
+  "traits": ["Loyal", "Sharp", "Resourceful"],
+  "accent": "#c9a84c"
+}
+```
+
+## Updating
 
 ```bash
-go build -o clawboard .
+cd <vel-app-dir>/plugins/clawboard
+git pull
 ```
 
-## Step 7 — Claude Max setup (if applicable)
+Restart Vel to pick up changes.
 
-If the user has Claude Max:
+## Troubleshooting
 
-1. Check if `claude` CLI is authenticated: `which claude && cat ~/.claude/.credentials.json | grep -c "user:profile"`
-2. Test the monitor: `CLAUDE_USAGE_OUTPUT=~/.openclaw/workspace/claude-usage.json bash ./core/services/claude-usage-monitor/scripts/claude-usage-poll.sh`
-3. Set up a cron job (every minute) for the poll script
-4. If not authenticated, tell the user to run `claude login` once
-
-## Step 8 — Nginx + Systemd
-
-Set up nginx reverse proxy and systemd service. See [Vel AGENT-SETUP.md](https://github.com/essdee/vel/blob/main/AGENT-SETUP.md) Steps 5-6 for the standard setup — use port 3700 and service name `clawboard`.
-
-## Step 9 — Tell the user
-
-> ✅ Dashboard is live at `https://<domain>`
->
-> **One thing you need to do** — open @BotFather:
-> 1. `/mybots` → select your bot → `Bot Settings` → `Domain` → enter: `<domain>`
-> 2. Optionally set Menu Button: `📊 Dashboard` → `https://<domain>/dashboard`
-
-## Error Handling
-
-- `go build` fails → needs Go 1.22+
-- Port 3700 in use → change in config.json
-- Service fails → `journalctl -u clawboard -f`
-- "Bot domain invalid" → BotFather domain not set
+- **Panels not showing** → check `plugins/clawboard/panels/` exists and has manifest.json files
+- **Claude usage empty** → verify `claude-usage.json` exists in workspace
+- **OpenClaw status empty** → verify `openclaw` CLI is in PATH
