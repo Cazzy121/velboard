@@ -37,6 +37,7 @@ describe('openclaw-status panel', () => {
       deps: { exec: async () => { throw new Error('not found'); } },
     });
     const api = require('./api.js')(ctx);
+    api._resetCache();
     const { statusCode, data } = await callHandler(api.handler);
     assert.equal(statusCode, 200);
     assert.equal(data.online, false);

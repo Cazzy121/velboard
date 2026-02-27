@@ -7,6 +7,9 @@ let _statusCache = null;
 let _statusCacheTime = 0;
 const STATUS_CACHE_TTL = 30000; // 30 seconds
 
+// For testing: allow cache reset
+function _resetCache() { _statusCache = null; _statusCacheTime = 0; }
+
 async function getSystemStatus(exec) {
   const now = Date.now();
   if (_statusCache && (now - _statusCacheTime) < STATUS_CACHE_TTL) {
@@ -60,6 +63,7 @@ async function getSystemStatus(exec) {
 }
 
 module.exports = ({ hooks, config, auth, panel, deps }) => ({
+  _resetCache,
   endpoint: `/api/panels/${panel.id}`,
 
   handler: async (req, res) => {
