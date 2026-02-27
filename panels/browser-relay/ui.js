@@ -16,6 +16,63 @@ const STATUS_LABELS = {
   [STATES.AGENT_ACTIVE]: 'Agent Active',
 };
 
+function detectPlatform() {
+  const ua = navigator.userAgent || '';
+  const pl = navigator.platform || '';
+  if (/Android|iPhone|iPad|iPod/i.test(ua)) return null;
+  if (/Win/i.test(pl)) return 'windows';
+  if (/Mac/i.test(pl)) return 'mac';
+  if (/Linux/i.test(pl)) return 'linux';
+  return null;
+}
+
+const PLATFORM_LABELS = { linux: 'Linux', mac: 'Mac', windows: 'Windows' };
+const ALL_PLATFORMS = ['linux', 'mac', 'windows'];
+
+function DownloadSection({ styles }) {
+  const [showOther, setShowOther] = useState(false);
+  const platform = detectPlatform();
+  const others = ALL_PLATFORMS.filter(p => p !== platform);
+
+  const linkStyle = { color: '#0af', fontSize: '11px', cursor: 'pointer', textDecoration: 'none', opacity: 0.8 };
+
+  if (!platform) {
+    return html`
+      <div style=${{ marginTop: '12px' }}>
+        <div style=${{ color: '#999', fontSize: '12px', marginBottom: '6px' }}>
+          ⚠ Unsupported platform — requires a desktop browser (Windows, Mac, or Linux)
+        </div>
+        <div style=${{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          ${ALL_PLATFORMS.map(p => html`
+            <a href=${'/relay/download?platform=' + p} style=${linkStyle}>⬇ ${PLATFORM_LABELS[p]}</a>
+          `)}
+        </div>
+      </div>
+    `;
+  }
+
+  return html`
+    <div style=${{ marginTop: '12px' }}>
+      <button style=${styles.btnPrimary} onclick=${() => window.open('/relay/download?platform=' + platform, '_blank')}>
+        ⬇ Download for ${PLATFORM_LABELS[platform]}
+      </button>
+      <div style=${{ marginTop: '6px' }}>
+        <span style=${{ ...linkStyle, opacity: 0.5 }} onclick=${() => setShowOther(!showOther)}>
+          ${showOther ? '▾' : '▸'} Other platforms
+        </span>
+        ${showOther && html`
+          <div style=${{ display: 'flex', gap: '12px', marginTop: '4px' }}>
+            ${others.map(p => html`
+              <a href=${'/relay/download?platform=' + p} style=${linkStyle}>⬇ ${PLATFORM_LABELS[p]}</a>
+            `)}
+            <a href=${'/relay/download'} style=${{ ...linkStyle, opacity: 0.5 }}>📦 All (ZIP)</a>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+}
+
 export default function BrowserRelayPanel({ data, error, connected, lastUpdate, api, config, cls }) {
   const [state, setState] = useState(STATES.DISCONNECTED);
   const [tabCount, setTabCount] = useState(0);
@@ -258,14 +315,10 @@ export default function BrowserRelayPanel({ data, error, connected, lastUpdate, 
             : 'No local browser detected. Launch Chrome with remote debugging to enable relay.'
           }
         </div>
-        <div style=${{ display: 'flex', gap: '8px' }}>
-          <button style=${styles.btnPrimary} onclick=${() => window.open('/relay/download', '_blank')}>
-            ⬇ Download Launcher
-          </button>
-          <button style=${styles.btn} onclick=${startRelay}>
-            ↻ Retry
-          </button>
-        </div>
+        <${DownloadSection} styles=${styles} />
+        <button style=${{ ...styles.btn, marginTop: '8px' }} onclick=${startRelay}>
+          ↻ Retry
+        </button>
       `}
 
       ${state === STATES.CONNECTING && html`
