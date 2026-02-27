@@ -409,6 +409,109 @@ func TestThemeServing(t *testing.T) {
 	}
 }
 
+func TestCustomRouteNonexistentDir(t *testing.T) {
+	auth.Init("test-token", []int64{123}, "test-secret")
+	dir := setupTestDir(t)
+	registry, _ := panels.DiscoverPanels(dir)
+
+	cfg := &Config{
+		RootDir:      dir,
+		Workspace:    t.TempDir(),
+		Port:         8080,
+		Registry:     registry,
+		Version:      "0.1.0-test",
+		PublicConfig: map[string]interface{}{},
+		Routes: map[string]string{
+			"/ghost/": "nonexistent/dir",
+		},
+		Hooks: hooks.New(),
+	}
+
+	h := NewServer(cfg) // should not crash
+	rr := doRequest(h, "GET", "/ghost/index.html", "", map[string]string{"Accept-Encoding": "identity"})
+	if rr.Code != 404 {
+		t.Fatalf("expected 404 for nonexistent route dir, got %d", rr.Code)
+	}
+}
+
+func TestAPIPanelsIncludesCustomPanel(t *testing.T) {
+	auth.Init("test-token", []int64{123}, "test-secret")
+	dir := setupTestDir(t)
+
+	// Add custom panel
+	customDir := filepath.Join(dir, "custom", "panels", "my-custom")
+	os.MkdirAll(customDir, 0755)
+	manifest := `{"id":"my-custom","contractVersion":"1.0","name":"My Custom","description":"d","version":"1.0.0","author":"a","size":"half"}`
+	os.WriteFile(filepath.Join(customDir, "manifest.json"), []byte(manifest), 0644)
+	os.WriteFile(filepath.Join(customDir, "ui.js"), []byte("export default {}"), 0644)
+
+	registry, _ := panels.DiscoverPanels(dir)
+	cfg := &Config{
+		RootDir:      dir,
+		Workspace:    t.TempDir(),
+		Port:         8080,
+		Registry:     registry,
+		Order:        []string{"cpu", "my-custom"},
+		Version:      "0.1.0-test",
+		PublicConfig: map[string]interface{}{},
+		Routes:       map[string]string{},
+		Hooks:        hooks.New(),
+	}
+
+	h := NewServer(cfg)
+	rr := doRequest(h, "GET", "/api/panels", "", map[string]string{"Accept-Encoding": "identity"})
+	var resp []map[string]interface{}
+	json.Unmarshal(rr.Body.Bytes(), &resp)
+	found := false
+	for _, p := range resp {
+		if p["id"] == "my-custom" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected custom panel in /api/panels")
+	}
+}
+
+func TestAPIPanelsIncludesPluginPanel(t *testing.T) {
+	auth.Init("test-token", []int64{123}, "test-secret")
+	dir := setupTestDir(t)
+
+	// Add plugin panel
+	plugDir := filepath.Join(dir, "plugins", "myplugin", "panels", "plug-panel")
+	os.MkdirAll(plugDir, 0755)
+	manifest := `{"id":"plug-panel","contractVersion":"1.0","name":"Plugin Panel","description":"d","version":"1.0.0","author":"a","size":"half"}`
+	os.WriteFile(filepath.Join(plugDir, "manifest.json"), []byte(manifest), 0644)
+	os.WriteFile(filepath.Join(plugDir, "ui.js"), []byte("export default {}"), 0644)
+
+	registry, _ := panels.DiscoverPanels(dir)
+	cfg := &Config{
+		RootDir:      dir,
+		Workspace:    t.TempDir(),
+		Port:         8080,
+		Registry:     registry,
+		Order:        []string{},
+		Version:      "0.1.0-test",
+		PublicConfig: map[string]interface{}{},
+		Routes:       map[string]string{},
+		Hooks:        hooks.New(),
+	}
+
+	h := NewServer(cfg)
+	rr := doRequest(h, "GET", "/api/panels", "", map[string]string{"Accept-Encoding": "identity"})
+	var resp []map[string]interface{}
+	json.Unmarshal(rr.Body.Bytes(), &resp)
+	found := false
+	for _, p := range resp {
+		if p["id"] == "plug-panel" && p["_source"] == "plugin:myplugin" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected plugin panel in /api/panels")
+	}
+}
+
 func TestThemeNotPresent(t *testing.T) {
 	h, _ := newTestServer(t)
 	// No theme file created, should 404
