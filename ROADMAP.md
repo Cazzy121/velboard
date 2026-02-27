@@ -20,10 +20,14 @@ Each version adds one layer. Panels and plugins written for v2 will work in v6.
 - Error boundaries: bad panel → fallback to core, dashboard never crashes
 - Auto-update: git pull core/, safety checks, opt-in
 
+**Schema seed (v2.2):**
+- Elm-quality validation errors in `panels.js` — every error tells you what's wrong, how to fix it, and shows a reference
+- Validation logic structured as discrete functions ready for v3 extraction to `core/schema/panels.js`
+
 ---
 
 ### v3 — Interactive Apps (Planned)
-**Adds:** SQLite store + forms + CRUD operations
+**Adds:** SQLite store + forms + CRUD operations + `core/schema/` + `clawboard doctor` CLI
 
 **You can build:** Todo apps, trackers, note-taking, simple data management
 
@@ -57,10 +61,17 @@ store.delete('todos', id)
 - Auto-migration when schemas change
 - Core renders forms from JSON schema, validates, handles submission
 
+**Schema (v3):**
+- Extract validation from `panels.js` into `core/schema/panels.js`
+- Add `core/schema/store.js` for store declaration validation
+- Add `core/schema/loader.js` (builds state snapshot for validators)
+- Add `core/schema/index.js` (composes modules, runs two-phase validation)
+- `clawboard doctor` CLI — run validation without starting server, usable as CI gate
+
 ---
 
 ### v4 — Multi-Page Apps (Planned)
-**Adds:** Routing + pages + sidebar navigation
+**Adds:** Routing + pages + sidebar navigation + `/api/schema` introspection
 
 **You can build:** Multi-page apps, wikis, project management tools
 
@@ -85,6 +96,10 @@ store.delete('todos', id)
 - Breadcrumbs for nested pages
 - Panel lazy-loading (only load panels for current page)
 
+**Schema (v4):**
+- Add `core/schema/pages.js` for page route and panel-page binding validation
+- `GET /api/schema` — live introspection endpoint exposing system state to external tools
+
 ---
 
 ### v5 — Team Apps (Planned)
@@ -107,6 +122,9 @@ store.delete('todos', id)
 - Core filters pages/panels based on user role
 - Row-level security for store queries (own vs all)
 
+**Schema (v5):**
+- Add `core/schema/roles.js` for role definitions, permission trees, inheritance validation
+
 ---
 
 ### v6 — Full Platform (Planned)
@@ -119,6 +137,10 @@ store.delete('todos', id)
 - **Search:** Core search endpoint across all panel stores, SQLite FTS5
 - **Files:** Upload endpoint, data/files/ storage, panel API for attachments
 - **Notifications:** Server push → WebSocket + OpenClaw message tool (Telegram/Discord/etc.)
+
+**Schema (v6):**
+- Add `core/schema/events.js` for event emitter/listener graph validation, circular dependency detection
+- Add `core/schema/files.js` for file access declaration validation
 
 ---
 
