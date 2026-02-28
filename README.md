@@ -45,7 +45,7 @@ Velboard gives you a live dashboard instead. Open a tab. Everything's there.
 
 All live. All WebSocket. Nothing stale.
 
-These 10 panels are just what it ships with. They're not the point.
+These 9 panels are just what it ships with. They're not the point.
 
 ---
 
@@ -73,7 +73,7 @@ Have an idea in your head? Describe it.
 
 Your agent builds it. The framework makes sure it works. It appears on your dashboard.
 
-**These 10 panels took an afternoon. Yours take a message.**
+**These 9 panels took an afternoon. Yours take a message.**
 
 Keep your custom panels in your own repo if you want. Or contribute them back. The framework doesn't care — it discovers what's there and makes it work. No conflicts. No merge hell. No waiting on anyone.
 
@@ -81,7 +81,7 @@ Keep your custom panels in your own repo if you want. Or contribute them back. T
 
 ## Your agent can act too
 
-Velboard ships with [VelReach](https://github.com/karthikeyan5/velreach) — your agent can use *your* browser. Pair with a 6-character code, watch it work in real time, no passwords shared. Your browser, your sessions, your agent's hands.
+Pair [VelReach](https://github.com/karthikeyan5/velreach) and your agent can use *your* browser. A 6-character code, real-time visibility, no passwords shared. Your browser, your sessions, your agent's hands.
 
 📖 **[VelReach →](https://github.com/karthikeyan5/velreach)**
 
