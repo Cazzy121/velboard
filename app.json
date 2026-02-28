@@ -4,6 +4,9 @@
   "title": "Clawboard",
   "description": "Real-time monitoring dashboard for OpenClaw agents",
   "panels": "panels",
+  "routes": {
+    "/relay/connect": {"type": "page", "dir": "pages/relay-connect"}
+  },
   "data_sources": {
     "claude-usage": {
       "type": "file",

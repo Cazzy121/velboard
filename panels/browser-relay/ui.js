@@ -112,15 +112,15 @@ export default function BrowserRelayPanel({ data, error, connected, lastUpdate, 
         <div style=${s.stepsBox}>
           <div style=${s.stepRow}>
             <div style=${s.stepNum}>1</div>
-            <div style=${s.stepText}><span style=${s.stepBold}>Download</span> the launcher for your platform</div>
+            <div style=${s.stepText}><span style=${s.stepBold}>Download & run</span> the launcher on your computer</div>
           </div>
           <div style=${s.stepRow}>
             <div style=${s.stepNum}>2</div>
-            <div style=${s.stepText}><span style=${s.stepBold}>Run it</span> — a browser window opens automatically</div>
+            <div style=${s.stepText}><span style=${s.stepBold}>Pair</span> — send the 6-digit code shown in Chrome to Ram on Telegram</div>
           </div>
           <div style=${{ ...s.stepRow, marginBottom: 0 }}>
             <div style=${s.stepNum}>3</div>
-            <div style=${s.stepText}><span style=${s.stepBold}>Tell Ram</span> what to do — "Search for flights to Tokyo", "Check my email"</div>
+            <div style=${s.stepText}><span style=${s.stepBold}>Done!</span> Your AI can now control the browser remotely</div>
           </div>
         </div>
       `}

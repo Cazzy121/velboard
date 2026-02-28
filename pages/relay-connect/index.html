@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenClaw Browser</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0e0e12; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .container { max-width: 480px; width: 100%; padding: 40px 24px; text-align: center; }
+  .logo { font-size: 48px; margin-bottom: 8px; }
+  h1 { font-size: 22px; font-weight: 600; color: #fff; margin-bottom: 8px; }
+  .subtitle { font-size: 14px; color: #888; margin-bottom: 32px; }
+
+  /* Pairing phase */
+  .code-display { display: flex; gap: 12px; justify-content: center; margin: 24px 0; }
+  .code-char { font-size: 42px; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace; color: #fff; background: #1a1a24; border: 2px solid #2a2a35; border-radius: 12px; width: 56px; height: 68px; display: flex; align-items: center; justify-content: center; }
+  .pair-instruction { font-size: 15px; color: #bbb; margin: 16px 0; line-height: 1.6; }
+  .pair-link { display: inline-block; margin-top: 12px; padding: 10px 24px; background: #0088cc; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; transition: background 0.2s; }
+  .pair-link:hover { background: #0077b3; }
+  .pair-timer { font-size: 13px; color: #666; margin-top: 16px; }
+  .pair-polling { font-size: 12px; color: #555; margin-top: 8px; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .polling-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #0af; margin-right: 6px; animation: pulse 1.5s infinite; vertical-align: middle; }
+
+  /* Status card */
+  .card { background: #16161c; border: 1px solid #2a2a35; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+  .status-icon { font-size: 40px; margin-bottom: 12px; }
+  .status-text { font-size: 18px; font-weight: 500; }
+  .status-sub { font-size: 14px; color: #888; margin-top: 8px; }
+  .tab-name { color: #0af; font-size: 14px; margin-top: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 400px; margin-left: auto; margin-right: auto; padding: 6px 12px; background: rgba(0,170,255,0.08); border-radius: 6px; border: 1px solid rgba(0,170,255,0.15); }
+  .error-text { color: #ef4444; font-size: 14px; margin-top: 8px; }
+
+  @keyframes glow { 0%,100% { box-shadow: 0 0 20px rgba(34,197,94,0.2); } 50% { box-shadow: 0 0 40px rgba(34,197,94,0.4); } }
+  @keyframes agent-glow { 0%,100% { box-shadow: 0 0 20px rgba(0,170,255,0.2); } 50% { box-shadow: 0 0 40px rgba(0,170,255,0.5); } }
+  .card.connected { animation: glow 3s infinite; }
+  .card.active { animation: agent-glow 1.5s infinite; }
+
+  .tips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 16px 0; }
+  .tip { background: #1a1a24; border: 1px solid #2a2a35; border-radius: 6px; padding: 6px 12px; font-size: 12px; color: #888; }
+
+  .btn { background: transparent; border: 1px solid #444; color: #aaa; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; margin-top: 16px; }
+  .btn:hover { border-color: #ef4444; color: #ef4444; }
+
+  .hidden { display: none; }
+  .phase { display: none; }
+  .phase.active { display: block; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">🦞</div>
+  <h1>OpenClaw Browser</h1>
+
+  <!-- Phase 1: Pairing -->
+  <div id="phasePair" class="phase active">
+    <div class="subtitle">Pair this browser with your AI assistant</div>
+    <div id="codeDisplay" class="code-display"></div>
+    <div class="pair-instruction">
+      Send this code to <strong>Ram</strong> on Telegram
+    </div>
+    <a id="tgLink" class="pair-link" href="#">
+      📱 Open in Telegram
+    </a>
+    <div id="pairTimer" class="pair-timer"></div>
+    <div class="pair-polling">
+      <span class="polling-dot"></span>Waiting for activation...
+    </div>
+  </div>
+
+  <!-- Phase 2: Connecting -->
+  <div id="phaseConnect" class="phase">
+    <div class="card">
+      <div class="status-icon">🔄</div>
+      <div class="status-text">Connecting...</div>
+      <div class="status-sub">Setting up bridge to your AI</div>
+    </div>
+  </div>
+
+  <!-- Phase 3: Connected -->
+  <div id="phaseActive" class="phase">
+    <div class="card" id="statusCard">
+      <div class="status-icon" id="statusIcon">✅</div>
+      <div class="status-text" id="statusText">Connected</div>
+      <div class="status-sub" id="statusSub">Your AI can now use this browser</div>
+      <div class="tab-name hidden" id="tabName"></div>
+      <div class="error-text hidden" id="errorText"></div>
+    </div>
+    <div class="tips">
+      <span class="tip">💡 Keep this tab open</span>
+      <span class="tip">🖥️ You can use other apps</span>
+    </div>
+    <button class="btn" onclick="disconnect()">Disconnect</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const baseURL = location.origin;
+
+  let relayWS = null;
+  let localWSMap = {};
+  let detectInterval = null;
+  let pollInterval = null;
+  let pairingToken = null;
+  let relayToken = null;
+
+  function showPhase(name) {
+    document.querySelectorAll('.phase').forEach(p => p.classList.remove('active'));
+    $(name).classList.add('active');
+  }
+
+  function setStatus(icon, text, sub, cls) {
+    $('statusIcon').textContent = icon;
+    $('statusText').textContent = text;
+    $('statusSub').textContent = sub || '';
+    $('statusCard').className = 'card' + (cls ? ' ' + cls : '');
+    $('tabName').classList.add('hidden');
+    $('errorText').classList.add('hidden');
+  }
+
+  function showTab(name) {
+    $('tabName').textContent = '🔍 ' + name;
+    $('tabName').classList.remove('hidden');
+  }
+
+  // Filter targets — exclude this page and chrome internals
+  function filterTargets(targets) {
+    return targets.filter(t =>
+      t.type === 'page' &&
+      !t.url.startsWith('chrome://') &&
+      !t.url.startsWith('chrome-extension://') &&
+      !t.url.includes('/relay/connect') &&
+      t.url !== ''
+    );
+  }
+
+  async function fetchTargets() {
+    try {
+      const resp = await fetch('http://localhost:9222/json');
+      if (!resp.ok) return null;
+      return await resp.json();
+    } catch(e) { return null; }
+  }
+
+  function connectLocalTarget(target) {
+    if (localWSMap[target.id]) return;
+    const wsUrl = target.webSocketDebuggerUrl;
+    if (!wsUrl) return;
+    try {
+      const ws = new WebSocket(wsUrl);
+      ws.onmessage = (e) => {
+        if (relayWS && relayWS.readyState === 1) {
+          relayWS.send(JSON.stringify({ type: 'cdp', targetId: target.id, data: JSON.parse(e.data) }));
+        }
+      };
+      ws.onclose = () => { delete localWSMap[target.id]; };
+      ws.onerror = () => { delete localWSMap[target.id]; };
+      localWSMap[target.id] = ws;
+    } catch(e) {}
+  }
+
+  function disconnectLocalTarget(id) {
+    if (localWSMap[id]) { try { localWSMap[id].close(); } catch(e){} delete localWSMap[id]; }
+  }
+
+  async function refreshTargets() {
+    const targets = await fetchTargets();
+    if (!targets) return;
+    const filtered = filterTargets(targets);
+    if (relayWS && relayWS.readyState === 1) {
+      relayWS.send(JSON.stringify({ type: 'targets', data: filtered }));
+    }
+    const ids = new Set(filtered.map(t => t.id));
+    filtered.forEach(t => connectLocalTarget(t));
+    Object.keys(localWSMap).forEach(id => { if (!ids.has(id)) disconnectLocalTarget(id); });
+  }
+
+  // Try saved token
+  async function trySavedToken() {
+    const saved = localStorage.getItem('oc_relay_token');
+    if (!saved) return false;
+    // Test by trying to connect WS briefly
+    return new Promise(resolve => {
+      const ws = new WebSocket(`${wsProto}//${location.host}/relay/ws?token=${saved}`);
+      const timeout = setTimeout(() => { ws.close(); resolve(false); }, 3000);
+      ws.onopen = () => { clearTimeout(timeout); ws.close(); relayToken = saved; resolve(true); };
+      ws.onerror = () => { clearTimeout(timeout); localStorage.removeItem('oc_relay_token'); resolve(false); };
+    });
+  }
+
+  async function startPairing() {
+    showPhase('phasePair');
+    try {
+      const resp = await fetch('/relay/pair/new');
+      const data = await resp.json();
+      if (data.error) { $('pairTimer').textContent = '❌ ' + data.error; return; }
+
+      pairingToken = data.token;
+      const code = data.code;
+      const expiresAt = new Date(data.expiresAt);
+
+      // Display code
+      $('codeDisplay').innerHTML = code.split('').map(c =>
+        `<div class="code-char">${c}</div>`
+      ).join('');
+
+      // Telegram link
+      $('tgLink').href = `tg://resolve?domain=EmpRamBot&start=pair_${code}`;
+
+      // Timer
+      const timerInterval = setInterval(() => {
+        const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+        if (remaining <= 0) {
+          clearInterval(timerInterval);
+          $('pairTimer').textContent = 'Code expired. Refreshing...';
+          if (pollInterval) clearInterval(pollInterval);
+          setTimeout(startPairing, 1000);
+          return;
+        }
+        const min = Math.floor(remaining / 60);
+        const sec = remaining % 60;
+        $('pairTimer').textContent = `Expires in ${min}:${sec.toString().padStart(2, '0')}`;
+      }, 1000);
+
+      // Poll for activation
+      pollInterval = setInterval(async () => {
+        try {
+          const resp = await fetch(`/relay/pair/status?token=${pairingToken}`);
+          const status = await resp.json();
+          if (status.activated) {
+            clearInterval(pollInterval);
+            clearInterval(timerInterval);
+            relayToken = status.relayToken;
+            localStorage.setItem('oc_relay_token', relayToken);
+            startBridge();
+          }
+        } catch(e) {}
+      }, 2000);
+
+    } catch(e) {
+      $('pairTimer').textContent = '❌ Failed to create pairing code';
+    }
+  }
+
+  async function startBridge() {
+    showPhase('phaseConnect');
+
+    // Wait for local CDP
+    let targets = null;
+    for (let i = 0; i < 20; i++) {
+      targets = await fetchTargets();
+      if (targets) break;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    if (!targets) {
+      showPhase('phaseActive');
+      setStatus('❌', 'Could not connect to browser', 'Local browser not responding on port 9222');
+      return;
+    }
+
+    // Connect to relay WS
+    showPhase('phaseActive');
+    setStatus('🔗', 'Connecting to relay...', '');
+
+    relayWS = new WebSocket(`${wsProto}//${location.host}/relay/ws?token=${relayToken}`);
+
+    relayWS.onopen = () => {
+      setStatus('✅', 'Connected!', 'Your AI can now use this browser', 'connected');
+      refreshTargets();
+      detectInterval = setInterval(refreshTargets, 5000);
+    };
+
+    relayWS.onmessage = (e) => {
+      const env = JSON.parse(e.data);
+      switch (env.type) {
+        case 'cdp': {
+          const ws = localWSMap[env.targetId];
+          if (ws && ws.readyState === 1) ws.send(JSON.stringify(env.data));
+          break;
+        }
+        case 'connect': {
+          setStatus('🤖', 'Your AI is working...', '', 'active');
+          fetchTargets().then(targets => {
+            if (targets) {
+              const t = targets.find(x => x.id === env.targetId);
+              if (t) showTab(t.title);
+              connectLocalTarget(t || { id: env.targetId });
+            }
+          });
+          break;
+        }
+        case 'disconnect': {
+          disconnectLocalTarget(env.targetId);
+          break;
+        }
+        case 'agent_disconnected': {
+          setStatus('✅', 'Connected!', 'Your AI finished working', 'connected');
+          break;
+        }
+        case 'ping': {
+          relayWS.send(JSON.stringify({ type: 'pong' }));
+          break;
+        }
+      }
+    };
+
+    relayWS.onclose = () => {
+      if (detectInterval) clearInterval(detectInterval);
+      Object.keys(localWSMap).forEach(disconnectLocalTarget);
+      localWSMap = {};
+      setStatus('🔌', 'Disconnected', 'Reconnecting in 3s...');
+      setTimeout(startBridge, 3000);
+    };
+
+    relayWS.onerror = () => {};
+  }
+
+  window.disconnect = function() {
+    if (relayWS) { relayWS.close(); relayWS = null; }
+    if (detectInterval) clearInterval(detectInterval);
+    Object.keys(localWSMap).forEach(disconnectLocalTarget);
+    localWSMap = {};
+    localStorage.removeItem('oc_relay_token');
+    setStatus('🔌', 'Disconnected', 'You can close this tab now');
+  };
+
+  // Init
+  (async () => {
+    if (await trySavedToken()) {
+      startBridge();
+    } else {
+      startPairing();
+    }
+  })();
+})();
+</script>
+</body>
+</html>
