@@ -424,6 +424,8 @@ const bridgeHTML = `<!DOCTYPE html>
 
   // ── Phase 4: Connect to relay server ──
 
+  var relayFailCount = 0;
+
   function connectRelay() {
     var wsScheme = ORIGIN.startsWith('https') ? 'wss' : 'ws';
     var wsHost = ORIGIN.replace(/^https?:\/\//, '');
@@ -433,6 +435,7 @@ const bridgeHTML = `<!DOCTYPE html>
     relayWS = new WebSocket(relayURL + '?token=' + relayToken);
 
     relayWS.onopen = function() {
+      relayFailCount = 0;
       setStatus('✅', 'Connected!', 'Waiting for your AI...', 'connected');
       refreshTargets();
     };
@@ -476,8 +479,10 @@ const bridgeHTML = `<!DOCTYPE html>
     };
 
     relayWS.onclose = function(e) {
-      if (e.code === 4001 || e.code === 1008) {
+      relayFailCount++;
+      if (e.code === 4001 || e.code === 1008 || relayFailCount >= 3) {
         clearToken();
+        relayFailCount = 0;
         setStatus('🔑', 'Session expired', '');
         startPairing();
         return;
