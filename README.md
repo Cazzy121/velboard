@@ -1,13 +1,7 @@
-<p align="center">
-  <img src="./screenshots/dashboard-mobile.png" alt="Clawboard Dashboard" width="300">
-</p>
-
 <h1 align="center">🦞 Clawboard</h1>
 
-> ⚠️ **Pre-release.** Clawboard depends on Vel which has not reached v1.0. Expect breaking changes between versions.
-
 <p align="center">
-  <strong>Real-time dashboard + browser relay for OpenClaw agents.</strong>
+  <strong>The AI-native dashboard. Your agent builds it. The framework makes it work.</strong>
 </p>
 
 <p align="center">
@@ -19,222 +13,170 @@
 
 ---
 
-## What is this?
+## What if your AI could build dashboards?
 
-Clawboard is a **[Vel](https://github.com/essdee/vel) app** that provides:
+Clawboard is a real-time monitoring dashboard built entirely by an AI agent. Every panel, every layout decision, every line of code — written by Claude through OpenClaw. **Your AI agent built this entire dashboard. Yours can build anything.**
 
-1. **Panel pack** — 10 monitoring panels for OpenClaw AI agents
-2. **Browser relay server** — Go server code for remote browser control via CDP
-
-It ships both frontend panels and backend Go code compiled into the Vel binary via `vel build`.
-
----
-
-## Panels
-
-| Icon | Panel | Size | What it shows |
-|------|-------|------|---------------|
-| ⚡ | **CPU** | half | Load %, core count, color-coded bar |
-| 🧠 | **Memory** | half | Used/total GB, percentage bar |
-| 💾 | **Disk** | half | Usage per mount point |
-| ⏱ | **Uptime** | half | System uptime + hostname |
-| ⚙️ | **Processes** | half | Running/sleeping/total |
-| 🔧 | **OpenClaw Status** | half | Version, sessions, channel |
-| 📊 | **Claude Usage** | full | 5-hour + 7-day quotas with reset countdowns |
-| 📅 | **Cron Jobs** | full | List, status, run/enable/disable buttons |
-| 🤖 | **Models** | full | Primary, fallback, sub-agent routing |
-| 🌐 | **Browser Relay** | full | Relay status, connected tab, message count |
-
-All panels update via WebSocket. No polling.
-
----
-
-## Browser Relay
-
-The `server/` directory contains Go server code that implements a **browser relay** — allowing OpenClaw agents to remotely control a user's browser via Chrome DevTools Protocol (CDP).
-
-### Architecture
-
-```
-┌──────────┐     WebSocket      ┌─────────────┐     WebSocket      ┌──────────┐
-│  Browser  │ ◄──────────────► │  Vel Server  │ ◄──────────────► │  Agent   │
-│ (bridge)  │                   │ (relay code) │                   │(OpenClaw)│
-└──────────┘                   └─────────────┘                   └──────────┘
-```
-
-- **Bridge**: JavaScript running in the browser that connects to the relay and forwards CDP commands
-- **Relay**: Go server code (compiled into Vel binary) that routes messages between browser and agent
-- **Agent**: OpenClaw connects via WebSocket or CDP-compatible endpoints
-
-### Pairing Flow
-
-1. Bridge page requests a pairing code (`/relay/pair/new`) — no auth required
-2. Bridge displays a 6-character code (e.g., `A3K7MN`)
-3. User tells their agent the code
-4. Agent activates the code via `/relay/pair/activate` (bot token auth)
-5. Bridge polls `/relay/pair/status` and receives a relay token
-6. Bridge connects WebSocket to `/relay/ws?token=<relay_token>`
-7. Agent connects to `/relay/cdp?token=<relay_token>` or uses CDP-compatible endpoints
-
-### Endpoints
-
-| Endpoint | Auth | Description |
-|----------|------|-------------|
-| `/relay/token` | Cookie | Get relay token for authenticated user |
-| `/relay/ws` | Token | Browser-side WebSocket |
-| `/relay/cdp` | Token | Agent-side WebSocket (envelope format) |
-| `/relay/json` | Token | Cached target list |
-| `/relay/status` | Cookie | Relay status for dashboard panel |
-| `/relay/bridge` | None | Bridge page (served over HTTPS) |
-| `/relay/download` | None | Launcher script download |
-| `/relay/pair/new` | None | Create pairing code |
-| `/relay/pair/status` | Token | Poll pairing status |
-| `/relay/pair/activate` | Bot token | Activate pairing code |
-| `/relay/connect` | None | Pairing page |
-| **CDP-compatible** | | |
-| `/relay/cdp/json/version` | Token | CDP `/json/version` equivalent |
-| `/relay/cdp/json/list` | Token | CDP `/json/list` with per-target WS URLs |
-| `/relay/cdp/ws` | Token | Raw CDP WebSocket proxy (no envelope) |
-| `/relay/cdp/status` | Token | Enhanced status with target list |
-| `/relay/cdp-info` | Launcher ID | Launcher↔bridge CDP info exchange |
-
-### CDP-Compatible Proxy
-
-The `/relay/cdp/*` endpoints speak standard CDP JSON-RPC (no envelope wrapping), making the relay compatible with tools that expect a direct CDP connection. The proxy:
-
-- Responds to `Target.getTargets` from cached target list
-- Translates `Target.attachToTarget` into relay connect envelopes
-- Forwards all other CDP messages transparently
-
-### Launcher Scripts
-
-Launcher scripts (~30 lines) launch Chrome with `--remote-debugging-port` and `--remote-allow-origins` restricted to the server domain (not wildcard), then POST the CDP WebSocket URL to `/relay/cdp-info`. The bridge page polls this endpoint to discover the local Chrome instance.
-
----
-
-## app.json
-
-```json
-{
-  "name": "clawboard",
-  "version": "1.0.0",
-  "title": "Clawboard",
-  "description": "Real-time monitoring dashboard for OpenClaw agents",
-  "panels": "panels",
-  "routes": {
-    "/relay/connect": {"type": "page", "dir": "pages/relay-connect"}
-  },
-  "data_sources": {
-    "claude-usage": {
-      "type": "file",
-      "path": "~/.openclaw/workspace/claude-usage.json",
-      "interval": "10s"
-    }
-  },
-  "server": {
-    "package": "server"
-  },
-  "capabilities": {
-    "net": {},
-    "github.com/gorilla/websocket": {}
-  }
-}
-```
-
----
-
-## Install & Deploy
-
-### Prerequisites
-
-- [Vel](https://github.com/essdee/vel) installed
-- Go 1.22+
-
-### Install
-
-```bash
-cd your-vel-app/apps/
-git clone https://github.com/karthikeyan5/clawboard.git
-```
-
-### Build (required — Clawboard has Go server code)
-
-```bash
-cd /path/to/vel
-./vel build
-```
-
-### Run
-
-```bash
-./vel start
-# or
-./vel
-```
-
-### Update
-
-```bash
-cd apps/clawboard && git pull && cd ../..
-./vel build
-sudo systemctl restart vel
-```
-
----
-
-## Directory Structure
-
-```
-clawboard/
-├── app.json              # App manifest
-├── panels/               # Dashboard panels
-│   ├── browser-relay/    # Relay status panel
-│   ├── claude-usage/     # Claude quota monitoring
-│   ├── cpu/              # CPU load
-│   ├── crons/            # Cron job management
-│   ├── disk/             # Disk usage
-│   ├── memory/           # RAM usage
-│   ├── models/           # AI model config
-│   ├── openclaw-status/  # OpenClaw agent status
-│   ├── processes/        # System processes
-│   └── uptime/           # System uptime
-├── pages/
-│   └── relay-connect/    # Browser pairing page
-├── server/               # Go server code (browser relay)
-│   ├── register.go       # vel.RegisterApp init
-│   ├── relay.go          # Core relay (WebSocket, handlers)
-│   ├── session.go        # Session management
-│   ├── pairing.go        # Pairing code logic
-│   ├── pair_handlers.go  # Pairing HTTP handlers
-│   ├── cdp_proxy.go      # CDP-compatible proxy endpoints
-│   ├── launcher.go       # Launcher↔bridge coordination
-│   └── download.go       # Launcher script download
-└── screenshots/
-```
-
----
-
-## Screenshots
-
-<table>
-<tr>
-<td><img src="./screenshots/landing-mobile.png" alt="Landing" width="280"></td>
-<td><img src="./screenshots/dashboard-mobile.png" alt="Dashboard" width="280"></td>
-</tr>
-</table>
-
----
-
-## For AI Agents
-
-See [`AGENT-SETUP.md`](./AGENT-SETUP.md) for installation instructions.
-
-## License
-
-[MIT](./LICENSE)
+The 10 panels that ship are just the starting point. The real power is the framework: tell your agent what you want to monitor, and it creates a working panel in seconds.
 
 ---
 
 <p align="center">
-  <sub>Built on <a href="https://github.com/essdee/vel">Vel ⚡</a> for <a href="https://github.com/openclaw/openclaw">OpenClaw</a> agents.</sub>
+  <img src="./screenshots/dashboard-mobile.png" alt="Clawboard Dashboard" width="600">
 </p>
+
+---
+
+## 10 Panels, Zero Configuration
+
+<table>
+<tr>
+<td align="center" width="25%">
+
+⚡ **CPU**<br>
+<sub>Live load percentage with color-coded bar</sub>
+
+</td>
+<td align="center" width="25%">
+
+🧠 **Memory**<br>
+<sub>Used/total GB with percentage bar</sub>
+
+</td>
+<td align="center" width="25%">
+
+💾 **Disk**<br>
+<sub>Usage per mount point</sub>
+
+</td>
+<td align="center" width="25%">
+
+⏱ **Uptime**<br>
+<sub>System uptime + hostname</sub>
+
+</td>
+</tr>
+<tr>
+<td align="center">
+
+⚙️ **Processes**<br>
+<sub>Running, sleeping, total count</sub>
+
+</td>
+<td align="center">
+
+🔧 **OpenClaw Status**<br>
+<sub>Version, sessions, channel</sub>
+
+</td>
+<td align="center">
+
+📊 **Claude Usage**<br>
+<sub>5-hour + 7-day quotas with countdowns</sub>
+
+</td>
+<td align="center">
+
+📅 **Cron Jobs**<br>
+<sub>List, status, run/enable/disable</sub>
+
+</td>
+</tr>
+<tr>
+<td align="center">
+
+🤖 **Models**<br>
+<sub>Primary, fallback, sub-agent routing</sub>
+
+</td>
+<td align="center">
+
+🌐 **Browser Relay**<br>
+<sub>Relay status, connected tab, messages</sub>
+
+</td>
+<td align="center" colspan="2">
+
+✨ **Your panel here**<br>
+<sub>Tell your AI agent what to build</sub>
+
+</td>
+</tr>
+</table>
+
+All panels update via WebSocket. No polling. No refresh.
+
+---
+
+## Create a Panel in 60 Seconds
+
+A panel is two files. That's it.
+
+**`panel.json`** — metadata:
+```json
+{
+  "name": "my-panel",
+  "title": "My Panel",
+  "icon": "📊",
+  "size": "half"
+}
+```
+
+**`ui.js`** — a Preact component:
+```javascript
+import { html } from '/js/lib/htm-preact.js';
+
+export default function Panel({ data }) {
+  return html`<div class="panel-content">
+    <h3>${data.value}</h3>
+  </div>`;
+}
+```
+
+Drop the folder into `panels/`, restart. Done. Your panel is live with WebSocket streaming, layout, and error handling — all handled by the framework.
+
+---
+
+## These Are Just the Defaults
+
+The 10 panels that ship with Clawboard are a starting point. The real magic is what comes next.
+
+**Tell your AI agent to build a monitoring panel for your database, your API, your CI pipeline, your smart home — whatever you can imagine.** The framework handles WebSocket streaming, layout, data sources, error handling. You just write the UI.
+
+`panel.json` + `ui.js`. Pour your imagination in. The framework takes care of making sure it works.
+
+---
+
+## 🌐 Browser Relay
+
+Clawboard includes a built-in browser relay server that lets your AI agent remotely control a browser via Chrome DevTools Protocol. Pair with a 6-character code, and your agent gets full CDP access — no extensions, no port forwarding.
+
+📖 **[Full Browser Relay documentation →](./RELAY.md)**
+
+---
+
+## Quick Start
+
+```bash
+# Install into your Vel apps directory
+cd your-vel-app/apps/
+git clone https://github.com/karthikeyan5/clawboard.git
+
+# Build (required — Clawboard has Go server code)
+cd /path/to/vel && ./vel build
+
+# Run
+./vel start
+```
+
+---
+
+## Built on Vel
+
+Clawboard is a **[Vel](https://github.com/essdee/vel)** app — the AI-native web framework. Single Go binary. Manifest-driven panels. WebSocket-first. Your app runs before they finish reading this.
+
+---
+
+## License
+
+[MIT](./LICENSE)
