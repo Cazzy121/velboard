@@ -1,0 +1,14 @@
+{
+  "name": "clawboard",
+  "version": "1.0.0",
+  "title": "Clawboard",
+  "description": "Real-time monitoring dashboard for OpenClaw agents",
+  "panels": "panels",
+  "data_sources": {
+    "claude-usage": {
+      "type": "file",
+      "path": "~/.openclaw/workspace/claude-usage.json",
+      "interval": "10s"
+    }
+  }
+}
