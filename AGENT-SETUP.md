@@ -34,8 +34,7 @@ Rebuild Vel to include Velboard:
 
 ```bash
 cd <install-dir>
-go run . build --mode=bypass
-go build -o vel .
+./vel build
 ```
 
 Verify panels are discovered:
@@ -138,8 +137,7 @@ curl -s http://localhost:<port>/api/panels | python3 -m json.tool
 cd <install-dir>/apps/velboard
 git pull
 cd <install-dir>
-go run . build --mode=bypass
-go build -o vel .
+./vel build
 sudo systemctl restart vel
 ```
 
