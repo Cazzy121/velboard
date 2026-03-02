@@ -5,8 +5,10 @@ OUTPUT_FILE="$HOME/.openclaw/workspace/sessions-summary.json"
 python3 << 'PYEOF'
 import json, time, sys
 
-SESSIONS_FILE = "/home/claw/.openclaw/agents/main/sessions/sessions.json"
-OUTPUT_FILE = "/home/claw/.openclaw/workspace/sessions-summary.json"
+import os
+home = os.path.expanduser("~")
+SESSIONS_FILE = os.path.join(home, ".openclaw/agents/main/sessions/sessions.json")
+OUTPUT_FILE = os.path.join(home, ".openclaw/workspace/sessions-summary.json")
 
 try:
     with open(SESSIONS_FILE) as f:

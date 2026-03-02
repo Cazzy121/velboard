@@ -115,6 +115,20 @@ If the user uses Claude Max:
 
 ---
 
+## Step 3b — Sessions panel setup
+
+The sessions panel needs a script to generate summary data from OpenClaw's session store. Set up a system cron to run it every minute:
+
+```bash
+# Run it once to create the initial file
+bash <install-dir>/apps/velboard/data/sessions-gen.sh
+
+# Add to system crontab
+(crontab -l 2>/dev/null; echo "* * * * * bash <install-dir>/apps/velboard/data/sessions-gen.sh") | crontab -
+```
+
+---
+
 ## Step 4 — systemd service
 
 Create `/etc/systemd/system/vel.service`:
@@ -135,6 +149,21 @@ User=<username>  # use the appropriate system user
 
 [Install]
 WantedBy=multi-user.target
+```
+
+**Important:** The OpenClaw panels (status, crons, models) need `openclaw` CLI in the service's PATH. Find where it's installed and add it:
+
+```bash
+# Find openclaw
+OPENCLAW_BIN=$(dirname $(which openclaw))
+
+# Add to the service Environment (edit the file above):
+# Environment=PATH=<openclaw-bin-dir>:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+```
+
+Or create a symlink:
+```bash
+sudo ln -sf $(which openclaw) /usr/local/bin/openclaw
 ```
 
 Enable and start:
