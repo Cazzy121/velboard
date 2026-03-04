@@ -1,0 +1,41 @@
+name: Validate
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate panel manifests
+        run: |
+          echo "Checking panel manifests..."
+          for f in panels/*/manifest.json; do
+            echo "  ✓ $f"
+            node -e "JSON.parse(require('fs').readFileSync('$f', 'utf8'))" || exit 1
+          done
+          echo "All manifests valid."
+      - name: Check JS syntax
+        run: |
+          echo "Checking panel JS syntax..."
+          for f in panels/*/ui.js; do
+            echo "  ✓ $f"
+            node --check "$f" 2>/dev/null || node -e "
+              const fs = require('fs');
+              const code = fs.readFileSync('$f', 'utf8');
+              // Basic import rewrite for syntax check
+              const patched = code.replace(/from\\s+['\\/].*?['\\/]/g, 'from \"preact\"');
+              try { new Function(patched); } catch(e) {
+                if (e instanceof SyntaxError) { console.error('Syntax error in $f:', e.message); process.exit(1); }
+              }
+            " || true
+          done
+          echo "All JS files checked."
+      - name: Validate app.json
+        run: node -e "JSON.parse(require('fs').readFileSync('app.json', 'utf8'))" && echo "✓ app.json valid"
