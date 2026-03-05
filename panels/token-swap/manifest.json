@@ -1,0 +1,23 @@
+{
+  "id": "token-swap",
+  "contractVersion": "1.0",
+  "name": "Token Swap",
+  "description": "Active API token status and quick switch",
+  "version": "1.0.0",
+  "author": "core",
+  "position": 6,
+  "size": "half",
+  "refreshMs": 30000,
+  "requires": [],
+  "capabilities": ["fetch"],
+  "dataSchema": {
+    "type": "object",
+    "properties": {
+      "tokens": { "type": "array" },
+      "active_name": { "type": "string" },
+      "default_name": { "type": "string" }
+    }
+  },
+  "rateLimit": { "windowMs": 60000, "max": 30 },
+  "config": {}
+}

@@ -1,0 +1,22 @@
+{
+  "id": "updates",
+  "contractVersion": "1.0",
+  "name": "Updates",
+  "description": "Git update status for framework and apps",
+  "version": "1.0.0",
+  "author": "core",
+  "position": 35,
+  "size": "full",
+  "refreshMs": 300000,
+  "requires": [],
+  "capabilities": ["fetch"],
+  "dataSchema": {
+    "type": "object",
+    "properties": {
+      "framework": { "type": "object" },
+      "apps": { "type": "array" }
+    }
+  },
+  "rateLimit": { "windowMs": 60000, "max": 10 },
+  "config": {}
+}

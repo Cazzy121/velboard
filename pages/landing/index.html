@@ -232,6 +232,13 @@
   </div>
 
   <script>
+    // Token auth: if ?token= is in URL, redirect straight to dashboard
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlToken = urlParams.get('token');
+    if (urlToken) {
+      window.location.href = '/dashboard?token=' + encodeURIComponent(urlToken);
+    }
+
     // Auto-redirect Mini App users to dashboard
     if (window.Telegram?.WebApp?.initData) {
       window.location.href = '/dashboard';
@@ -280,9 +287,25 @@
         document.getElementById('company-name').textContent = cfg.company;
       }
 
-      // Telegram login widget
-      if (cfg.botUsername && cfg.authUrl) {
-        const loginArea = document.getElementById('tg-login-area');
+      // Auth section — adapt based on authMode
+      const loginArea = document.getElementById('tg-login-area');
+      const authMode = cfg.authMode || 'telegram';
+
+      if (authMode === 'token' || authMode === 'none') {
+        // Token auth: show "Enter Dashboard" button with token input
+        loginArea.innerHTML = `
+          <div style="display:flex;flex-direction:column;align-items:center;gap:12px;width:100%">
+            <input id="token-input" type="password" placeholder="Enter access token"
+              style="width:100%;max-width:300px;padding:12px 16px;background:var(--card);border:1px solid var(--card-border);border-radius:10px;color:var(--text);font-size:0.85rem;outline:none;font-family:inherit;transition:border-color 0.2s"
+              onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--card-border)'" />
+            <button onclick="goToDashboard()" style="padding:12px 32px;background:linear-gradient(135deg, var(--accent), #d4b85a);color:#000;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:0.9rem;border:none;border-radius:10px;cursor:pointer;box-shadow:0 4px 24px var(--accent-glow);transition:transform 0.2s">
+              🔓 Open Dashboard
+            </button>
+          </div>
+        `;
+        loginArea.classList.add('ready');
+      } else if (cfg.botUsername && cfg.authUrl) {
+        // Telegram auth
         const script = document.createElement('script');
         script.async = true;
         script.src = 'https://telegram.org/js/telegram-widget.js?22';
@@ -317,6 +340,20 @@
       }
     }).catch(() => {
       document.getElementById('tg-login-placeholder').textContent = '';
+    });
+
+    function goToDashboard() {
+      const input = document.getElementById('token-input');
+      const token = input ? input.value.trim() : '';
+      if (token) {
+        window.location.href = '/dashboard?token=' + encodeURIComponent(token);
+      } else {
+        window.location.href = '/dashboard';
+      }
+    }
+    // Allow Enter key on token input
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && document.activeElement?.id === 'token-input') goToDashboard();
     });
   </script>
 </body>
