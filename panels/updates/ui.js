@@ -11,9 +11,10 @@ export default function UpdatesPanel({ data, error, connected, lastUpdate, api, 
     setDeployMsg('');
     try {
       const r = await api.fetch('/api/updates/check', { method: 'POST' });
+      if (!r.ok) { console.error('[updates] check failed:', r.status); setChecking(false); return; }
       const d = await r.json();
       setStatus(d);
-    } catch { }
+    } catch (e) { console.error('[updates] check error:', e); }
     setChecking(false);
   };
 

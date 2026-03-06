@@ -10,11 +10,12 @@ export default function TokenSwapPanel({ data, error, connected, lastUpdate, api
   const load = async () => {
     try {
       const r = await api.fetch('/token-swap/api/status');
+      if (!r.ok) { console.error('[token-swap] status failed:', r.status); return; }
       const d = await r.json();
       setTokens(d.tokens || []);
       setActive(d.active_name || '');
       setDflt(d.default_name || '');
-    } catch {}
+    } catch (e) { console.error('[token-swap] load error:', e); }
   };
 
   useEffect(() => { load(); }, []);
